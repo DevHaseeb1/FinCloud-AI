@@ -15,7 +15,8 @@ from app.utils.helpers import (
     aggregate_by_region, 
     calculate_percentage,
     format_currency,
-    get_trend
+    get_trend,
+    get_table_date_range
 )
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,15 @@ async def get_cost_summary(
         Cost summary response
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={"message": "No cost data found in database"},
+                message="Empty database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         # Query processed costs
         costs = db.query(db_models.ProcessedCostData).filter(
@@ -74,7 +83,7 @@ async def get_cost_summary(
             "lowest_service": lowest_service,
             "lowest_service_cost": round(services_costs[lowest_service], 2),
             "period_start": start_date.isoformat(),
-            "period_end": datetime.now().isoformat(),
+            "period_end": data_max.isoformat(),
             "num_records": len(costs)
         }
         
@@ -108,7 +117,15 @@ async def get_cost_timeseries(
         Time series data
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={"timeseries": []},
+                message="No cost data found in database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         query = db.query(db_models.ProcessedCostData).filter(
             db_models.ProcessedCostData.date >= start_date
@@ -157,7 +174,15 @@ async def get_service_breakdown(
         Service breakdown
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={"breakdown": []},
+                message="No cost data found in database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         costs = db.query(db_models.ProcessedCostData).filter(
             db_models.ProcessedCostData.date >= start_date
@@ -207,7 +232,15 @@ async def get_region_breakdown(
         Region breakdown
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={"breakdown": []},
+                message="No cost data found in database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         costs = db.query(db_models.ProcessedCostData).filter(
             db_models.ProcessedCostData.date >= start_date

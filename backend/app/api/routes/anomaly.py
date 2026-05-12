@@ -9,6 +9,7 @@ import logging
 
 from app.core.database import get_db
 from app.models import db_models, schemas
+from app.utils.helpers import get_table_date_range
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/anomalies", tags=["anomalies"])
@@ -36,7 +37,19 @@ async def get_anomalies(
         List of anomalies
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.Anomaly, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={
+                    "anomalies": [],
+                    "total_count": 0,
+                    "returned_count": 0
+                },
+                message="No anomaly data found in database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         anomalies = db.query(db_models.Anomaly).filter(
             db_models.Anomaly.date >= start_date,
@@ -142,7 +155,15 @@ async def get_anomalies_by_service(
         Anomalies for service
     """
     try:
-        start_date = datetime.now() - timedelta(days=days)
+        data_min, data_max = get_table_date_range(db, db_models.Anomaly, "date")
+        if data_max is None:
+            return schemas.APIResponse(
+                status="success",
+                data={"anomalies": []},
+                message="No anomaly data found in database"
+            )
+        
+        start_date = data_max - timedelta(days=days)
         
         anomalies = db.query(db_models.Anomaly).filter(
             db_models.Anomaly.service == service,

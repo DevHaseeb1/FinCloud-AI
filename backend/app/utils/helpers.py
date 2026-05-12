@@ -8,6 +8,17 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
+# backend/app/utils/helpers.py — add this function
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+
+def get_table_date_range(db: Session, model, date_column_name: str = "date"):
+    """Get actual min/max date from any model's date column."""
+    date_col = getattr(model, date_column_name)
+    result = db.query(func.min(date_col), func.max(date_col)).first()
+    return result[0], result[1]  # (min_date, max_date) — both None if table is empty
+
 logger = logging.getLogger(__name__)
 
 
