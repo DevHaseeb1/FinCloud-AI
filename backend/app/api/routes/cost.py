@@ -63,28 +63,12 @@ async def get_cost_summary(
         
         # Calculate summary metrics
         total_cost = sum(c.total_cost for c in costs)
-        avg_daily_cost = total_cost / days
-        
-        # Group by service
-        services_costs = {}
-        for cost in costs:
-            if cost.service not in services_costs:
-                services_costs[cost.service] = 0
-            services_costs[cost.service] += cost.total_cost
-        
-        highest_service = max(services_costs, key=services_costs.get)
-        lowest_service = min(services_costs, key=services_costs.get)
+        avg_daily_cost = total_cost / len(costs) if costs else 0
         
         summary = {
             "total_cost": round(total_cost, 2),
-            "average_daily_cost": round(avg_daily_cost, 2),
-            "highest_service": highest_service,
-            "highest_service_cost": round(services_costs[highest_service], 2),
-            "lowest_service": lowest_service,
-            "lowest_service_cost": round(services_costs[lowest_service], 2),
-            "period_start": start_date.isoformat(),
-            "period_end": data_max.isoformat(),
-            "num_records": len(costs)
+            "monthly_cost": round(avg_daily_cost * 30, 2),
+            "cost_change_pct": 0  # Could be calculated from previous period
         }
         
         return schemas.APIResponse(
@@ -140,10 +124,8 @@ async def get_cost_timeseries(
         
         timeseries = [
             {
-                "timestamp": c.date.isoformat(),
-                "value": round(c.total_cost, 2),
-                "service": c.service,
-                "region": c.region
+                "date": c.date.isoformat(),
+                "cost": round(c.total_cost, 2)
             }
             for c in costs
         ]
@@ -200,10 +182,9 @@ async def get_service_breakdown(
         breakdown = []
         for service, cost in sorted(service_costs.items(), key=lambda x: x[1], reverse=True):
             breakdown.append({
-                "service": service,
-                "total_cost": round(cost, 2),
-                "percentage": round(calculate_percentage(cost, total), 2),
-                "trend": "up"  # Could be calculated from previous period
+                "name": service,
+                "cost": round(cost, 2),
+                "pct": round(calculate_percentage(cost, total), 2)
             })
         
         return schemas.APIResponse(
@@ -261,10 +242,9 @@ async def get_region_breakdown(
         breakdown = []
         for region, cost in sorted(region_costs.items(), key=lambda x: x[1], reverse=True):
             breakdown.append({
-                "region": region,
-                "total_cost": round(cost, 2),
-                "percentage": round(calculate_percentage(cost, total), 2),
-                "services_count": len(region_services[region])
+                "name": region,
+                "cost": round(cost, 2),
+                "pct": round(calculate_percentage(cost, total), 2)
             })
         
         return schemas.APIResponse(

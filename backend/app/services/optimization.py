@@ -5,6 +5,7 @@ Cost optimization service using Random Forest.
 import pandas as pd
 import numpy as np
 import logging
+from typing import Dict
 from app.ml.random_forest import RandomForestOptimizer
 
 logger = logging.getLogger(__name__)

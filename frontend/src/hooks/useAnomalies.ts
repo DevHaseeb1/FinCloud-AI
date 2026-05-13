@@ -13,7 +13,11 @@ export function useAnomalies(params?: {
   const { mode } = useDataMode();
   return useQuery({
     queryKey: ["anomalies", "list", mode, params],
-    queryFn: () => anomalyService.list({ ...params, mode }),
+    queryFn: async () => {
+      const data = await anomalyService.list({ ...params, mode });
+      // Unwrap if nested in anomalies object
+      return Array.isArray(data) ? data : data?.anomalies ?? [];
+    },
   });
 }
 
@@ -21,7 +25,11 @@ export function useLatestAnomalies() {
   const { mode } = useDataMode();
   return useQuery({
     queryKey: ["anomalies", "latest", mode],
-    queryFn: () => anomalyService.latest({ mode }),
+    queryFn: async () => {
+      const data = await anomalyService.latest({ mode });
+      // Unwrap if nested in anomalies object
+      return Array.isArray(data) ? data : data?.anomalies ?? [];
+    },
   });
 }
 

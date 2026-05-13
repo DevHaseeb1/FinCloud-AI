@@ -7,10 +7,14 @@ from sqlalchemy.orm import Session
 import pandas as pd
 import io
 import logging
+from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.services.preprocessing import DataPreprocessor, DataValidator
+from app.services.anomaly_detection import AnomalyDetectionService
+from app.services.forecasting import ForecastingService
+from app.services.optimization import OptimizationService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -253,7 +257,115 @@ async def upload_cost_data(
             logger.error(f"❌ Bulk insert failed: {insert_error}")
             raise HTTPException(status_code=500, detail=f"Database insertion failed: {str(insert_error)}")
 
-        # ✅ 13. DEBUG LOGS - Summary
+        # ✅ 13. RUN ML MODELS ON PROCESSED DATA
+        try:
+            logger.info("🤖 Starting ML model training and inference...")
+            
+            # Clear old predictions for this date range
+            cutoff_date = processed_df['date'].min()
+            db.query(db_models.Anomaly).filter(db_models.Anomaly.date >= cutoff_date).delete()
+            db.query(db_models.Forecast).filter(db_models.Forecast.date >= cutoff_date).delete()
+            db.query(db_models.Recommendation).filter(db_models.Recommendation.created_at >= datetime.utcnow() - timedelta(hours=1)).delete()
+            db.commit()
+            logger.info("✅ Cleared old predictions")
+            
+            # ✅ 13a. ANOMALY DETECTION
+            try:
+                logger.info("🔍 Running anomaly detection...")
+                anomaly_service = AnomalyDetectionService(contamination=0.1)
+                
+                if len(processed_df) >= 5:  # Need at least 5 samples
+                    anomaly_service.train(processed_df)
+                    anomaly_results = anomaly_service.detect_anomalies(processed_df)
+                    
+                    # Save anomalies to database
+                    anomaly_records = []
+                    for idx, row in anomaly_results.iterrows():
+                        anomaly_records.append(db_models.Anomaly(
+                            date=row['date'],
+                            service=row['service'],
+                            region=row['region'],
+                            anomaly_score=float(row.get('anomaly_score', 0)),
+                            anomaly_flag=bool(row.get('anomaly_flag', False)),
+                            cost_value=float(row['total_cost']),
+                            explanation=f"Anomaly detected for {row['service']} in {row['region']}"
+                        ))
+                    
+                    if anomaly_records:
+                        db.bulk_save_objects(anomaly_records)
+                        db.commit()
+                        logger.info(f"✅ Saved {len(anomaly_records)} anomaly records")
+                else:
+                    logger.warning(f"⚠️  Insufficient data for anomaly detection ({len(processed_df)} < 5)")
+            except Exception as e:
+                logger.warning(f"⚠️  Anomaly detection failed: {e}")
+            
+            # ✅ 13b. FORECASTING
+            try:
+                logger.info("📈 Running forecasting...")
+                forecast_service = ForecastingService(forecast_periods=30)
+                
+                if len(processed_df) >= 10:  # Prophet needs at least 10 samples
+                    forecast_service.train(processed_df, service='all')
+                    forecast_result = forecast_service.forecast_total_cost()
+                    
+                    # Save forecasts to database
+                    forecast_records = []
+                    for idx, row in forecast_result.iterrows():
+                        forecast_records.append(db_models.Forecast(
+                            date=row['date'],
+                            service='all',
+                            region='all',
+                            predicted_cost=float(row.get('predicted_cost', 0)),
+                            lower_bound=float(row.get('lower_bound', 0)),
+                            upper_bound=float(row.get('upper_bound', 0))
+                        ))
+                    
+                    if forecast_records:
+                        db.bulk_save_objects(forecast_records)
+                        db.commit()
+                        logger.info(f"✅ Saved {len(forecast_records)} forecast records")
+                else:
+                    logger.warning(f"⚠️  Insufficient data for forecasting ({len(processed_df)} < 10)")
+            except Exception as e:
+                logger.warning(f"⚠️  Forecasting failed: {e}")
+            
+            # ✅ 13c. RECOMMENDATIONS
+            try:
+                logger.info("💡 Generating recommendations...")
+                
+                if len(processed_df) >= 5:
+                    opt_service = OptimizationService()
+                    recommendations = opt_service.get_recommendations(processed_df)
+                    
+                    # Save recommendations to database
+                    rec_records = []
+                    for rec in recommendations:
+                        rec_records.append(db_models.Recommendation(
+                            service=rec.get('service', 'all'),
+                            region=rec.get('region', 'all'),
+                            recommendation_type=rec.get('recommendation_type', 'optimization'),
+                            suggestion=rec.get('suggestion', 'Optimize costs'),
+                            estimated_savings=float(rec.get('estimated_savings', 0)),
+                            confidence_score=float(rec.get('confidence_score', 0.5)),
+                            priority=int(rec.get('priority', 1))
+                        ))
+                    
+                    if rec_records:
+                        db.bulk_save_objects(rec_records)
+                        db.commit()
+                        logger.info(f"✅ Saved {len(rec_records)} recommendation records")
+                else:
+                    logger.warning(f"⚠️  Insufficient data for recommendations ({len(processed_df)} < 5)")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️  Recommendation generation failed: {e}")
+                
+        except Exception as e:
+            logger.warning(f"⚠️  ML operations failed: {e}")
+            # Don't fail the upload if ML models fail
+        
+        # ✅ 14. DEBUG LOGS - Summary
         logger.info(f"📋 CSV Ingestion Summary:")
         logger.info(f"   Rows loaded: {rows_before_cleaning}")
         logger.info(f"   Rows after cleaning: {rows_after_cleaning}")

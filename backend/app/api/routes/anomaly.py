@@ -53,7 +53,7 @@ async def get_anomalies(
         
         anomalies = db.query(db_models.Anomaly).filter(
             db_models.Anomaly.date >= start_date,
-            db_models.Anomaly.anomaly_flag == 1,
+            db_models.Anomaly.anomaly_flag == True,
             db_models.Anomaly.anomaly_score >= min_score
         ).order_by(
             db_models.Anomaly.anomaly_score.desc()
@@ -61,7 +61,7 @@ async def get_anomalies(
         
         total_count = db.query(db_models.Anomaly).filter(
             db_models.Anomaly.date >= start_date,
-            db_models.Anomaly.anomaly_flag == 1,
+            db_models.Anomaly.anomaly_flag == True,
             db_models.Anomaly.anomaly_score >= min_score
         ).count()
         
@@ -109,7 +109,7 @@ async def get_latest_anomalies(
     """
     try:
         anomalies = db.query(db_models.Anomaly).filter(
-            db_models.Anomaly.anomaly_flag == 1
+            db_models.Anomaly.anomaly_flag == True
         ).order_by(
             db_models.Anomaly.date.desc()
         ).limit(limit).all()
@@ -168,7 +168,7 @@ async def get_anomalies_by_service(
         anomalies = db.query(db_models.Anomaly).filter(
             db_models.Anomaly.service == service,
             db_models.Anomaly.date >= start_date,
-            db_models.Anomaly.anomaly_flag == 1
+            db_models.Anomaly.anomaly_flag == True
         ).order_by(
             db_models.Anomaly.date.desc()
         ).all()
