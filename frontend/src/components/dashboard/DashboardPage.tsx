@@ -7,36 +7,41 @@ import { RegionBreakdown } from "@/components/dashboard/RegionBreakdown";
 import { AnomalyPanel } from "@/components/dashboard/AnomalyPanel";
 import { ForecastPanel } from "@/components/dashboard/ForecastPanel";
 import { RecommendationsPanel } from "@/components/dashboard/RecommendationsPanel";
-import { Separator } from "@/components/ui/separator";
 
 export function DashboardPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Cloud cost analytics, anomaly detection, forecasting, and recommendations.
+    <div className="space-y-8 pb-8">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Financial Operations Dashboard</h1>
+        <p className="text-muted-foreground">
+          Real-time cloud cost analytics, anomaly detection, forecasting, and optimization recommendations.
         </p>
       </div>
 
-      <KPICards />
+      {/* KPI Cards */}
+      <div>
+        <KPICards />
+      </div>
 
-      <Separator />
+      {/* Main Content Grid */}
+      <div className="space-y-6">
+        {/* Cost Overview - Full Width */}
+        <CostOverview />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <CostOverview />
+        {/* Service & Region Breakdown */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ServiceBreakdown />
+          <RegionBreakdown />
         </div>
-        <ServiceBreakdown />
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RegionBreakdown />
-        <AnomalyPanel />
-      </div>
+        {/* Anomalies & Forecast */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <AnomalyPanel />
+          <ForecastPanel />
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ForecastPanel />
+        {/* Recommendations */}
         <RecommendationsPanel />
       </div>
     </div>

@@ -7,8 +7,11 @@ export type ApiEnvelope<T> = {
 export type CostSummary = {
   total_cost?: number;
   monthly_cost?: number;
+  average_daily_cost?: number;
   cost_change_pct?: number;
   currency?: string;
+  highest_service?: string;
+  highest_service_cost?: number;
 };
 
 export type CostTimeseriesPoint = {
@@ -49,6 +52,11 @@ export type Recommendation = {
   estimated_savings?: number;
   priority?: "low" | "medium" | "high";
   category?: string;
+};
+
+export type RecommendationsResponse = {
+  recommendations?: Recommendation[];
+  total_potential_savings?: number;
 };
 
 export type UploadResult = {

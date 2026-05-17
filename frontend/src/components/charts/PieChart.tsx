@@ -37,8 +37,19 @@ export function PieChart({
               const num = typeof v === "number" ? v : Number(v);
               return [valueFormatter?.(num) ?? num, p?.payload?.[nameKey] ?? ""];
             }}
+            contentStyle={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "6px",
+              color: "hsl(var(--foreground))",
+            }}
+            labelStyle={{ color: "hsl(var(--foreground))" }}
           />
-          <Legend verticalAlign="bottom" height={24} />
+          <Legend 
+            verticalAlign="bottom" 
+            height={24}
+            wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }}
+          />
           <Pie
             data={data}
             dataKey={valueKey}
@@ -46,6 +57,7 @@ export function PieChart({
             innerRadius={60}
             outerRadius={90}
             paddingAngle={3}
+            isAnimationActive={true}
           >
             {data.map((_d, idx) => (
               <Cell key={idx} fill={COLORS[idx % COLORS.length]} />

@@ -9,9 +9,7 @@ export const uploadService = {
     const form = new FormData();
     form.append("file", file);
     if (opts?.mode) form.append("mode", opts.mode);
-    return postData<UploadResult>("/upload/data", form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    return postData<UploadResult>("/upload/data", form);
   },
 };
 

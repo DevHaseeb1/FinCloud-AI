@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAnomalies } from "@/hooks/useAnomalies";
+import type { Anomaly } from "@/types/apiTypes";
 
 function riskBadge(score?: number) {
   if (typeof score !== "number") return <Badge variant="outline">n/a</Badge>;
@@ -60,7 +61,7 @@ export default function AnomaliesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {q.data?.map((a, idx) => (
+                {q.data?.map((a: Anomaly, idx: number) => (
                   <TableRow key={String(a.id ?? idx)}>
                     <TableCell>{riskBadge(a.anomaly_score)}</TableCell>
                     <TableCell className="font-mono text-xs">

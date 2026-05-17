@@ -6,12 +6,12 @@ export const costService = {
     getData<CostSummary>("/cost/summary", { params: opts }),
 
   timeseries: (opts?: { start?: string; end?: string; service?: string; region?: string; mode?: string }) =>
-    getData<CostTimeseriesPoint[]>("/cost/timeseries", { params: opts }),
+    getData<CostTimeseriesPoint[] | { timeseries: CostTimeseriesPoint[] }>("/cost/timeseries", { params: opts }),
 
   serviceBreakdown: (opts?: { start?: string; end?: string; mode?: string }) =>
-    getData<BreakdownItem[]>("/cost/service-breakdown", { params: opts }),
+    getData<BreakdownItem[] | { breakdown: BreakdownItem[] }>("/cost/service-breakdown", { params: opts }),
 
   regionBreakdown: (opts?: { start?: string; end?: string; mode?: string }) =>
-    getData<BreakdownItem[]>("/cost/region-breakdown", { params: opts }),
+    getData<BreakdownItem[] | { breakdown: BreakdownItem[] }>("/cost/region-breakdown", { params: opts }),
 };
 

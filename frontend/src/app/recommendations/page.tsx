@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { formatCurrency } from "@/lib/format";
+import type { Recommendation } from "@/types/apiTypes";
 
 function priorityVariant(priority?: string) {
   if (priority === "high") return "destructive";
@@ -38,7 +39,7 @@ export default function RecommendationsPage() {
         <div className="text-sm text-muted-foreground">No recommendations yet.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {q.data?.map((r, idx) => (
+          {q.data?.map((r: Recommendation, idx: number) => (
             <Card key={String(r.id ?? idx)}>
               <CardHeader className="flex flex-row items-start justify-between gap-3">
                 <div className="min-w-0">
