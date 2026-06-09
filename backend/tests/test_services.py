@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
 
+from app.api.routes.upload import map_aws_billing_columns
 from app.services.preprocessing import DataPreprocessor, DataValidator
 from app.ml.isolation_forest import IsolationForestModel
 from app.ml.prophet_model import ProphetForecastingModel
@@ -90,6 +91,43 @@ class TestDataValidator:
         
         is_valid, message = DataValidator.validate_cost_data(df)
         assert is_valid is False
+
+    def test_aws_billing_column_mapping(self):
+        df = pd.DataFrame({
+            'line_item_usage_start_date': [datetime(2024, 1, 1, 0, 0)],
+            'product_servicename': ['ec2'],
+            'product_region': ['us-east-1'],
+            'line_item_unblended_cost': [100.0],
+            'line_item_usage_amount': [5.0]
+        })
+
+        mapped = map_aws_billing_columns(df)
+
+        assert 'timestamp' in mapped.columns
+        assert 'service' in mapped.columns
+        assert 'region' in mapped.columns
+        assert 'total_cost' in mapped.columns
+        assert 'usage_quantity' in mapped.columns
+        assert mapped['timestamp'].dtype == object or 'datetime' in str(mapped['timestamp'].dtype)
+
+    def test_aws_billing_interval_and_cost_fallback(self):
+        df = pd.DataFrame({
+            'identity_time_interval': ['2024-01-01T00:00:00Z/2024-01-01T01:00:00Z'],
+            'product_servicecode': ['AmazonEC2'],
+            'product_region_code': ['us-east-1'],
+            'line_item_blended_cost': [150.0],
+            'line_item_usage_amount': [3.0]
+        })
+
+        mapped = map_aws_billing_columns(df)
+
+        assert 'timestamp' in mapped.columns
+        assert 'service' in mapped.columns
+        assert 'region' in mapped.columns
+        assert 'total_cost' in mapped.columns
+        assert 'usage_quantity' in mapped.columns
+        assert pd.to_datetime(mapped['timestamp']).notna().all()
+        assert mapped['total_cost'].iloc[0] == 150.0
 
 
 class TestIsolationForest:

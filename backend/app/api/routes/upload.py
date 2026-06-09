@@ -17,6 +17,72 @@ from app.services.forecasting import ForecastingService
 from app.services.optimization import OptimizationService
 
 logger = logging.getLogger(__name__)
+
+AWS_COLUMN_PRIORITIES = {
+    "timestamp": [
+        "line_item_usage_start_date",
+        "line_item_usage_end_date",
+        "identity_time_interval",
+        "bill_billing_period_start_date",
+        "bill_billing_period_end_date",
+    ],
+    "service": [
+        "product_servicename",
+        "product_servicecode",
+        "product_product_name",
+        "product_group",
+        "product_group_description",
+    ],
+    "region": [
+        "product_region",
+        "product_region_code",
+        "product_location",
+        "product_from_region_code",
+        "product_to_region_code",
+        "product_availability_zone",
+    ],
+    "total_cost": [
+        "line_item_unblended_cost",
+        "line_item_blended_cost",
+        "pricing_public_on_demand_cost",
+        "reservation_effective_cost",
+        "savings_plan_savings_plan_rate",
+    ],
+    "usage_quantity": [
+        "line_item_usage_amount",
+        "line_item_normalized_usage_amount",
+        "reservation_unused_quantity",
+    ],
+}
+
+
+def _extract_interval_start(series: pd.Series) -> pd.Series:
+    return series.astype(str).str.split("/").str[0].str.strip()
+
+
+def map_aws_billing_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Map prioritized AWS columns to internal column names
+    for internal_col, candidates in AWS_COLUMN_PRIORITIES.items():
+        if internal_col in df.columns:
+            continue
+
+        for candidate in candidates:
+            if candidate in df.columns:
+                if internal_col == "timestamp" and candidate == "identity_time_interval":
+                    df[internal_col] = _extract_interval_start(df[candidate])
+                else:
+                    df = df.rename(columns={candidate: internal_col})
+                break
+
+    # Ensure downstream pipeline has a region column
+    if "region" not in df.columns:
+        df["region"] = "unknown"
+
+    return df
+
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 
@@ -29,7 +95,7 @@ async def upload_cost_data(
     Simplified CSV ingestion endpoint handling only 5 required columns:
     - timestamp (required)
     - service (required)
-    - region (required)
+    - region (optional, filled with 'unknown' when missing)
     - total_cost (required, renamed to 'cost' for DB)
     - usage_quantity (optional)
     
@@ -49,34 +115,46 @@ async def upload_cost_data(
     rows_before_cleaning = 0
     try:
         # ✅ 1. VALIDATE FILE TYPE
-        if not file.filename.endswith(".csv"):
-            raise HTTPException(status_code=400, detail="Only CSV files are supported")
+        filename = file.filename.lower()
+        if not filename.endswith((".csv", ".xls", ".xlsx")):
+            raise HTTPException(status_code=400, detail="Only CSV or Excel files are supported")
 
-        # ✅ 2. READ CSV SAFELY
+        # ✅ 2. READ FILE SAFELY
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
+        if filename.endswith(".csv"):
+            try:
+                df = pd.read_csv(io.BytesIO(contents), encoding="utf-8-sig", dtype=str)
+            except UnicodeDecodeError:
+                df = pd.read_csv(io.BytesIO(contents), encoding="latin-1", dtype=str)
+        else:
+            df = pd.read_excel(io.BytesIO(contents), dtype=str)
+
         rows_before_cleaning = len(df)
-        logger.info(f"📤 CSV uploaded: {rows_before_cleaning} rows")
+        logger.info(f"📤 File uploaded: {rows_before_cleaning} rows")
         logger.info(f"📋 Columns: {list(df.columns)}")
-        logger.info(f"📋 CSV head (first 3 rows):\n{df.head(3)}")
-        logger.info(f"📋 CSV dtypes:\n{df.dtypes}")
+        logger.info(f"📋 File head (first 3 rows):\n{df.head(3)}")
+        logger.info(f"📋 File dtypes:\n{df.dtypes}")
 
         if df.empty:
-            raise HTTPException(status_code=400, detail="Uploaded CSV is empty")
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
         # ✅ 3. CLEAN COLUMN NAMES (strip, lowercase)
-        df.columns = df.columns.str.strip().str.lower()
-        logger.info(f"✅ Cleaned column names: {list(df.columns)}")
+        df = map_aws_billing_columns(df)
+        logger.info(f"✅ Cleaned and mapped column names: {list(df.columns)}")
 
         # ✅ 4. VALIDATE REQUIRED COLUMNS EXIST
-        required_cols = ["timestamp", "service", "region", "total_cost"]
+        required_cols = ["timestamp", "service", "total_cost"]
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise HTTPException(
                 status_code=400,
                 detail=f"Missing required columns: {missing_cols}"
             )
-        logger.info("✅ All required columns present")
+        logger.info("✅ Required AWS billing columns are present")
+
+        # Ensure region is always available for downstream DB and analytics
+        if "region" not in df.columns:
+            df["region"] = "unknown"
 
         # ✅ 5. SELECT ONLY NEEDED COLUMNS (ignore others)
         needed_cols = ["timestamp", "service", "region", "total_cost"]
