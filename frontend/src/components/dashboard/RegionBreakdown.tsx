@@ -16,13 +16,13 @@ export function RegionBreakdown() {
   const topRegion = q.data?.[0];
 
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-gradient-to-br from-card/50 via-card/30 to-card/50 backdrop-blur-sm">
-      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-orange-500/5 blur-3xl" />
+    <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
+      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-violet/5 blur-3xl pointer-events-none" />
       <CardHeader className="relative">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Globe className="size-4" />
+              <Globe className="size-4 text-violet" />
               Region Breakdown
             </CardTitle>
             <CardDescription>Cost distribution by AWS region</CardDescription>
@@ -30,7 +30,7 @@ export function RegionBreakdown() {
           {totalCost > 0 && (
             <div className="text-right">
               <div className="text-sm text-muted-foreground">Total</div>
-              <div className="text-lg font-semibold">{formatCurrency(totalCost, { currency })}</div>
+              <div className="text-lg font-semibold font-mono">{formatCurrency(totalCost, { currency })}</div>
             </div>
           )}
         </div>
@@ -55,7 +55,7 @@ export function RegionBreakdown() {
                 <div className="text-xs font-medium text-muted-foreground">Primary Region</div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{topRegion.name}</span>
-                  <span className="text-sm font-semibold">{formatCurrency(topRegion.cost, { currency })}</span>
+                  <span className="text-sm font-semibold font-mono">{formatCurrency(topRegion.cost, { currency })}</span>
                 </div>
               </div>
             )}
@@ -65,4 +65,3 @@ export function RegionBreakdown() {
     </Card>
   );
 }
-

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, CloudUpload, Gauge, Radar, Sparkles, TriangleAlert } from "lucide-react";
@@ -20,27 +21,55 @@ const items: NavItem[] = [
   { href: "/upload", label: "Upload", icon: <CloudUpload className="size-4" /> },
 ];
 
-export function Nav() {
+export function Nav({ collapsed }: { collapsed?: boolean }) {
   const pathname = usePathname();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <nav className="grid gap-1">
-      {items.map((it) => {
+      {items.map((it, i) => {
         const active = pathname === it.href;
+        const delay = i * 30;
         return (
           <Link
             key={it.href}
             href={it.href}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              active && "bg-accent text-accent-foreground",
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-100 relative overflow-hidden",
+              active && "bg-primary/10 text-primary font-medium",
+              !mounted && "opacity-0 translate-x-[-12px]",
+              mounted && "opacity-100 translate-x-0",
             )}
+            style={{
+              transitionProperty: "opacity, transform, background-color, color",
+              transitionDuration: "250ms",
+              transitionTimingFunction: "var(--ease-out-expo)",
+              transitionDelay: mounted ? `${delay}ms` : "0ms",
+            }}
           >
-            {it.icon}
-            <span>{it.label}</span>
+            {active && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-cyan transition-transform duration-150 origin-bottom scale-y-100" />
+            )}
+            <span className={cn("shrink-0", active ? "text-cyan" : "text-muted-foreground")}>{it.icon}</span>
+            {!collapsed && (
+              <span
+                className="transition-opacity duration-100"
+                style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+              >
+                {it.label}
+              </span>
+            )}
+            {active && !collapsed && (
+              <span className="ml-auto text-[10px] font-medium text-cyan/70">Live</span>
+            )}
           </Link>
         );
       })}
     </nav>
   );
 }
-

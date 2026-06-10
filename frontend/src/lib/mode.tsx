@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-export type DataMode = "synthetic" | "aws";
+export type DataMode = "synthetic";
 
 type ModeContextValue = {
   mode: DataMode;
@@ -18,7 +18,7 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === "synthetic" || raw === "aws") setModeState(raw);
+    if (raw === "synthetic") setModeState(raw);
   }, []);
 
   const setMode = React.useCallback((next: DataMode) => {

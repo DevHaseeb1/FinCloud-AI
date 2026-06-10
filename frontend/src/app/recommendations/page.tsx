@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +21,10 @@ export default function RecommendationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Recommendations</h1>
+        <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+          <Sparkles className="size-6 text-emerald-500" />
+          Recommendations
+        </h1>
         <p className="text-sm text-muted-foreground">
           Prioritized optimizations with estimated savings.
         </p>
@@ -40,7 +44,8 @@ export default function RecommendationsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {q.data?.map((r: Recommendation, idx: number) => (
-            <Card key={String(r.id ?? idx)}>
+            <Card key={String(r.id ?? idx)} className="relative overflow-hidden border-border/50 bg-gradient-to-br from-card/50 via-card/30 to-card/50 backdrop-blur-sm transition-all hover:border-primary/30">
+              <div className="absolute -right-16 -top-16 size-32 rounded-full bg-emerald-500/5 blur-2xl" />
               <CardHeader className="flex flex-row items-start justify-between gap-3">
                 <div className="min-w-0">
                   <CardTitle className="truncate text-base">{r.title ?? "Optimization"}</CardTitle>
@@ -53,7 +58,7 @@ export default function RecommendationsPage() {
               <CardContent className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">{r.category ?? "Cost"}</div>
                 {typeof r.estimated_savings === "number" ? (
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
                     {formatCurrency(r.estimated_savings, { currency })} / mo
                   </Badge>
                 ) : (

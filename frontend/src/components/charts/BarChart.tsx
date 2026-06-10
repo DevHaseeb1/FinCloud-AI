@@ -9,6 +9,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export function BarChart({
   data,
@@ -21,29 +22,31 @@ export function BarChart({
   yKey: string;
   yFormatter?: (v: number) => string;
 }) {
+  const reduced = useReducedMotion();
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <RBarChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
-          <CartesianGrid 
-            strokeDasharray="3 3" 
+          <CartesianGrid
+            strokeDasharray="3 3"
             opacity={0.2}
             stroke="hsl(var(--border))"
           />
-          <XAxis 
-            dataKey={xKey} 
-            tickMargin={8} 
+          <XAxis
+            dataKey={xKey}
+            tickMargin={8}
             minTickGap={24}
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "12px" }}
           />
-          <YAxis 
-            tickFormatter={yFormatter} 
+          <YAxis
+            tickFormatter={yFormatter}
             width={70}
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "12px" }}
           />
-          <Tooltip 
+          <Tooltip
             formatter={(v) => (typeof v === "number" ? yFormatter?.(v) ?? v : v)}
             contentStyle={{
               backgroundColor: "hsl(var(--card))",
@@ -53,15 +56,16 @@ export function BarChart({
             }}
             labelStyle={{ color: "hsl(var(--foreground))" }}
           />
-          <Bar 
-            dataKey={yKey} 
-            fill="hsl(var(--primary))" 
+          <Bar
+            dataKey={yKey}
+            fill="var(--cyan)"
             radius={[6, 6, 0, 0]}
-            isAnimationActive={true}
+            isAnimationActive={!reduced}
+            animationDuration={600}
+            animationEasing="ease-out"
           />
         </RBarChart>
       </ResponsiveContainer>
     </div>
   );
 }
-

@@ -1,29 +1,40 @@
 "use client";
 
+import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ForecastAreaChart } from "@/components/charts/ForecastAreaChart";
 import { useForecastNext30 } from "@/hooks/useForecast";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { formatCurrency } from "@/lib/format";
 import type { ForecastPoint } from "@/types/apiTypes";
 import { TrendingUp } from "lucide-react";
 
 export function ForecastPanel() {
   const q = useForecastNext30();
+  const reduced = useReducedMotion();
   const currency = "USD";
+  const [showData, setShowData] = React.useState(false);
 
-  // Calculate projected totals
   const totalPredicted = q.data?.reduce((sum: number, f: ForecastPoint) => sum + (f.predicted ?? 0), 0) ?? 0;
   const avgPredicted = q.data && q.data.length > 0 ? totalPredicted / q.data.length : 0;
 
+  React.useEffect(() => {
+    if (q.isSuccess) {
+      const timer = setTimeout(() => setShowData(true), reduced ? 0 : 300);
+      return () => clearTimeout(timer);
+    }
+    setShowData(false);
+  }, [q.isSuccess, q.data, reduced]);
+
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-gradient-to-br from-card/50 via-card/30 to-card/50 backdrop-blur-sm">
-      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-cyan-500/5 blur-3xl" />
+    <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
+      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-cyan/5 blur-3xl pointer-events-none" />
       <CardHeader className="relative">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="size-4" />
+              <TrendingUp className="size-4 text-cyan" />
               30-Day Forecast
             </CardTitle>
             <CardDescription>Projected cloud costs with confidence bounds</CardDescription>
@@ -31,7 +42,7 @@ export function ForecastPanel() {
           {q.data && q.data.length > 0 && (
             <div className="text-right">
               <div className="text-sm text-muted-foreground">Projected Total</div>
-              <div className="text-lg font-semibold">{formatCurrency(totalPredicted, { currency })}</div>
+              <div className="text-lg font-semibold font-mono">{formatCurrency(totalPredicted, { currency })}</div>
             </div>
           )}
         </div>
@@ -44,7 +55,13 @@ export function ForecastPanel() {
         ) : (q.data?.length ?? 0) === 0 ? (
           <div className="text-sm text-muted-foreground">No forecast available yet.</div>
         ) : (
-          <>
+          <div
+            className="transition-all duration-300"
+            style={{
+              opacity: showData ? 1 : 0,
+              transitionTimingFunction: "var(--ease-out-expo)",
+            }}
+          >
             <ForecastAreaChart
               data={q.data ?? []}
               xKey="date"
@@ -58,18 +75,17 @@ export function ForecastPanel() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs font-medium text-muted-foreground">Average Daily Cost</div>
-                  <div className="text-lg font-semibold">{formatCurrency(avgPredicted, { currency })}</div>
+                  <div className="text-lg font-semibold font-mono">{formatCurrency(avgPredicted, { currency })}</div>
                 </div>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground">Forecast Records</div>
-                  <div className="text-lg font-semibold">{q.data?.length ?? 0} days</div>
+                  <div className="text-lg font-semibold font-mono">{q.data?.length ?? 0} days</div>
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </CardContent>
     </Card>
   );
 }
-

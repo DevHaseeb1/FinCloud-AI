@@ -22,9 +22,18 @@ export function ThemeToggle() {
       size="icon"
       onClick={() => setTheme(next)}
       aria-label="Toggle theme"
+      className="transition-transform duration-300"
     >
-      {current === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <div
+        className="transition-transform duration-300"
+        style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+      >
+        {current === "dark" ? (
+          <Sun className="size-4" />
+        ) : (
+          <Moon className="size-4" />
+        )}
+      </div>
     </Button>
   );
 }
-

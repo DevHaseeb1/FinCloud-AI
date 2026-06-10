@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export function ForecastAreaChart({
   data,
@@ -28,36 +29,42 @@ export function ForecastAreaChart({
   upperKey?: string;
   yFormatter?: (v: number) => string;
 }) {
+  const reduced = useReducedMotion();
   const hasBand = Boolean(lowerKey && upperKey);
+
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
           <defs>
             <linearGradient id="colorBand" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--violet)" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="var(--violet)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--cyan)" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="var(--cyan)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid 
-            strokeDasharray="3 3" 
+          <CartesianGrid
+            strokeDasharray="3 3"
             opacity={0.2}
             stroke="hsl(var(--border))"
           />
-          <XAxis 
-            dataKey={xKey} 
-            tickMargin={8} 
+          <XAxis
+            dataKey={xKey}
+            tickMargin={8}
             minTickGap={24}
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "12px" }}
           />
-          <YAxis 
-            tickFormatter={yFormatter} 
+          <YAxis
+            tickFormatter={yFormatter}
             width={70}
             stroke="hsl(var(--muted-foreground))"
             style={{ fontSize: "12px" }}
           />
-          <Tooltip 
+          <Tooltip
             formatter={(v) => (typeof v === "number" ? yFormatter?.(v) ?? v : v)}
             contentStyle={{
               backgroundColor: "hsl(var(--card))",
@@ -75,7 +82,9 @@ export function ForecastAreaChart({
                 dataKey={upperKey as string}
                 stroke="transparent"
                 fill="url(#colorBand)"
-                isAnimationActive={true}
+                isAnimationActive={!reduced}
+                animationDuration={800}
+                animationEasing="ease-out"
               />
               <Area
                 type="monotone"
@@ -83,20 +92,13 @@ export function ForecastAreaChart({
                 stroke="transparent"
                 fill="hsl(var(--background))"
                 fillOpacity={1}
-                isAnimationActive={true}
+                isAnimationActive={!reduced}
+                animationDuration={800}
+                animationEasing="ease-out"
               />
             </>
           ) : null}
 
-          <Line
-            type="monotone"
-            dataKey={predictedKey}
-            stroke="hsl(var(--primary))"
-            strokeWidth={2.5}
-            dot={false}
-            isAnimationActive={true}
-            name="Predicted"
-          />
           {actualKey && (
             <Line
               type="monotone"
@@ -104,14 +106,26 @@ export function ForecastAreaChart({
               stroke="hsl(var(--muted-foreground))"
               strokeWidth={2}
               dot={false}
-              isAnimationActive={true}
-              strokeDasharray="5 5"
+              isAnimationActive={!reduced}
+              animationDuration={1000}
+              animationEasing="ease-out"
               name="Actual"
             />
           )}
+          <Line
+            type="monotone"
+            dataKey={predictedKey}
+            stroke="var(--violet)"
+            strokeWidth={2.5}
+            strokeDasharray="6 3"
+            dot={false}
+            isAnimationActive={!reduced}
+            animationDuration={800}
+            animationEasing="ease-out"
+            name="Predicted"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
-

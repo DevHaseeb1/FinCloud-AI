@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,13 +28,17 @@ export default function AnomaliesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Anomalies</h1>
+        <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+          <TriangleAlert className="size-6 text-red-500" />
+          Anomalies
+        </h1>
         <p className="text-sm text-muted-foreground">
           Review detected anomalies and prioritize high-risk spikes.
         </p>
       </div>
 
-      <Card>
+      <Card className="relative overflow-hidden border-border/50 bg-gradient-to-br from-card/50 via-card/30 to-card/50 backdrop-blur-sm">
+        <div className="absolute -right-32 -top-32 size-64 rounded-full bg-red-500/5 blur-3xl" />
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Detected Anomalies</CardTitle>
           <Badge variant="outline">{q.data?.length ?? 0}</Badge>

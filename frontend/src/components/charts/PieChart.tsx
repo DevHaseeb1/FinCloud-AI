@@ -8,13 +8,17 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
+  "var(--cyan)",
+  "var(--violet)",
   "hsl(var(--chart-3))",
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "#F97316",
 ];
 
 export function PieChart({
@@ -28,6 +32,8 @@ export function PieChart({
   valueKey: string;
   valueFormatter?: (v: number) => string;
 }) {
+  const reduced = useReducedMotion();
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -45,8 +51,8 @@ export function PieChart({
             }}
             labelStyle={{ color: "hsl(var(--foreground))" }}
           />
-          <Legend 
-            verticalAlign="bottom" 
+          <Legend
+            verticalAlign="bottom"
             height={24}
             wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }}
           />
@@ -57,7 +63,9 @@ export function PieChart({
             innerRadius={60}
             outerRadius={90}
             paddingAngle={3}
-            isAnimationActive={true}
+            isAnimationActive={!reduced}
+            animationDuration={800}
+            animationEasing="ease-out"
           >
             {data.map((_d, idx) => (
               <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
@@ -68,4 +76,3 @@ export function PieChart({
     </div>
   );
 }
-

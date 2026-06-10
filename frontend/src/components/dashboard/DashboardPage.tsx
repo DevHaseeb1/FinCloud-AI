@@ -11,6 +11,12 @@ import { RecommendationsPanel } from "@/components/dashboard/RecommendationsPane
 export function DashboardPage() {
   return (
     <div className="space-y-8 pb-8">
+      {/* Decorative background */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute -left-32 -top-32 size-96 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 size-96 rounded-full bg-accent/5 blur-3xl" />
+      </div>
+
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Financial Operations Dashboard</h1>
