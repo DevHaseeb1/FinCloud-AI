@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models import db_models, schemas
-from app.services.preprocessing import DataPreprocessor, DataValidator
+from app.services.data_wrangling_real import DataPreprocessor, DataValidator
 from app.services.anomaly_detection import AnomalyDetectionService
 from app.services.forecasting import ForecastingService
 from app.services.optimization import OptimizationService

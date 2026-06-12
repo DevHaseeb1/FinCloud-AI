@@ -169,7 +169,7 @@ This will start:
 - `POST /api/v1/upload/data` - Upload CSV data
 - `POST /api/v1/upload/sample-data` - Generate sample data
 
-## 🧹 ETL Pipeline
+## **🧹 ETL Pipeline**
 
 ### Step 1: Data Cleaning
 
@@ -210,6 +210,44 @@ This will start:
 
 - Identifies cost-saving opportunities
 - Output: recommendation_type, estimated_savings, confidence_score
+---------------------------------------------------------------------------------------------------
+
+
+# 🛠️ Technology Stack
+
+### Cloud Platform
+
+- AWS
+
+### Programming Language
+
+- Python
+
+### Data Processing
+
+- Pandas
+- NumPy
+
+### Database
+
+- PostgreSQL
+
+### Machine Learning
+
+- Scikit-Learn
+- Prophet
+- RandomForest
+
+### Visualization
+
+- Website
+
+### Version Control
+
+- Git
+- GitHub
+
+---
 
 ## 📈 Sample API Response
 
@@ -281,22 +319,34 @@ FORECAST_PERIODS=30
 - Metrics: Available at `/metrics` (if configured)
 - Debugging: Use `/api/docs` for interactive testing
 
-## 🤝 Contributing
+
+# **🤝 Contributing**
 
 1. Create feature branch
 2. Make changes
 3. Add tests
 4. Create pull request
 
-## 📄 License
+# **📄 License**
 
 Proprietary - FinCloud-AI
 
-## 📞 Support
+# **📞 Contact**
 
-For issues or questions, contact: backend-team@fincloud.ai
+**Muhammad Usman**
+
+📧 Email: usman.rizz6769@gmail.com
+
+💼 LinkedIn: https://www.linkedin.com/in/mohammad-usman736
+
+🐙 GitHub: https://github.com/usman-rizz
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: 2024
+For project-related queries, collaboration opportunities, or technical discussions, feel free to reach out through email or LinkedIn.
+
+If you discover any issues or have suggestions for improvement, please open an issue in this repository.
+
+---
+
+**Last Updated**: 2026
