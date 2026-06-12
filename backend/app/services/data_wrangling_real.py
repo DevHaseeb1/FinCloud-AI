@@ -11,7 +11,7 @@
     "           font-size:45px;\n",
     "           padding:20px;\n",
     "           border-radius:12px;\">\n",
-    "\n",
+    "\n", 
     "  <span>\n",
     "    <img src=\"https://upload.wikimedia.org/wikipedia/commons/9/93/Amazon_Web_Services_Logo.svg\"\n",
     "         width=\"65\"\n",
