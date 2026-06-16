@@ -81,6 +81,13 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
+If you already use a root workspace virtual environment, activate the root `.venv` from the project root instead:
+
+```bash
+cd FinCloud-AI
+.\.venv\Scripts\Activate.ps1  # PowerShell
+```
+
 ### 2. Install Dependencies
 
 ```bash

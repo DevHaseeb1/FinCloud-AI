@@ -10,6 +10,7 @@ import logging
 
 from app.core.database import get_db
 from app.models import db_models, schemas
+from app.api.dependencies import require_authenticated_user
 from app.utils.helpers import (
     aggregate_by_service, 
     aggregate_by_region, 
@@ -26,7 +27,8 @@ router = APIRouter(prefix="/cost", tags=["cost"])
 @router.get("/summary", response_model=schemas.APIResponse)
 async def get_cost_summary(
     days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost summary for specified period.
@@ -86,7 +88,8 @@ async def get_cost_timeseries(
     days: int = Query(30, ge=1, le=365),
     service: str = Query(None),
     region: str = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost time series data.
@@ -143,7 +146,8 @@ async def get_cost_timeseries(
 @router.get("/service-breakdown", response_model=schemas.APIResponse)
 async def get_service_breakdown(
     days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost breakdown by service.
@@ -200,7 +204,8 @@ async def get_service_breakdown(
 @router.get("/region-breakdown", response_model=schemas.APIResponse)
 async def get_region_breakdown(
     days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost breakdown by region.

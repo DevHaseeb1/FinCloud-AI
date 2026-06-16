@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProviders } from "@/components/app/AppProviders";
 import { AppShell } from "@/components/app/AppShell";
 import { PageTransition } from "@/components/shell/PageTransition";
+import { AuthLayoutWrapper } from "@/components/auth/AuthLayoutWrapper";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -33,12 +34,12 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-full flex flex-col overflow-hidden">
         <TooltipProvider>
           <AppProviders>
-            <AppShell>
-              <PageTransition>{children}</PageTransition>
-            </AppShell>
+            <AuthLayoutWrapper>
+              {children}
+            </AuthLayoutWrapper>
           </AppProviders>
         </TooltipProvider>
       </body>

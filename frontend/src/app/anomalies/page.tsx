@@ -1,6 +1,7 @@
 "use client";
 
 import { TriangleAlert } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +23,7 @@ function riskBadge(score?: number) {
   return <Badge variant="outline">Low</Badge>;
 }
 
-export default function AnomaliesPage() {
+function AnomaliesPageContent() {
   const q = useAnomalies();
 
   return (
@@ -85,6 +86,14 @@ export default function AnomaliesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function AnomaliesPage() {
+  return (
+    <ProtectedRoute>
+      <AnomaliesPageContent />
+    </ProtectedRoute>
   );
 }
 

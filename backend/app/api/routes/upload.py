@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.services.preprocessing import DataPreprocessor, DataValidator
+from app.api.dependencies import require_authenticated_user
 from app.services.anomaly_detection import AnomalyDetectionService
 from app.services.forecasting import ForecastingService
 from app.services.optimization import OptimizationService
@@ -89,7 +90,8 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 @router.post("/data", response_model=schemas.APIResponse)
 async def upload_cost_data(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Simplified CSV ingestion endpoint handling only 5 required columns:

@@ -1,6 +1,7 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +15,7 @@ function priorityVariant(priority?: string) {
   return "outline";
 }
 
-export default function RecommendationsPage() {
+function RecommendationsPageContent() {
   const q = useRecommendations();
   const currency = "USD";
 
@@ -67,9 +68,17 @@ export default function RecommendationsPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+      </div>
+    )}
     </div>
+  );
+}
+
+export default function RecommendationsPage() {
+  return (
+    <ProtectedRoute>
+      <RecommendationsPageContent />
+    </ProtectedRoute>
   );
 }
 

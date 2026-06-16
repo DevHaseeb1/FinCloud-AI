@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { ModeProvider } from "@/lib/mode";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -32,11 +33,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <QueryClientProvider client={queryClient}>
-        <ModeProvider>{children}</ModeProvider>
-        <Toaster richColors position="top-right" />
-        <ReactQueryDevtools initialIsOpen={false} />
-      </QueryClientProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <ModeProvider>{children}</ModeProvider>
+          <Toaster richColors position="top-right" />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

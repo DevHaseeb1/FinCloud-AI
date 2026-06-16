@@ -9,6 +9,7 @@ import logging
 
 from app.core.database import get_db
 from app.models import db_models, schemas
+from app.api.dependencies import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forecast", tags=["forecast"])
@@ -21,7 +22,8 @@ async def get_forecast(
     region: str = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost forecasts.
@@ -74,7 +76,8 @@ async def get_forecast(
 
 @router.get("/next-30-days", response_model=schemas.APIResponse)
 async def get_forecast_next_30_days(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get forecast for next 30 days.
@@ -142,7 +145,8 @@ async def get_forecast_next_30_days(
 async def get_forecast_by_service(
     service: str = Query(...),
     days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get forecast for specific service.

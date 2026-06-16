@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Download, BarChart3 } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DateRangePicker } from "@/components/filters/DateRangePicker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ function downloadCsv(rows: Array<{ date: string; cost: number }>) {
   URL.revokeObjectURL(url);
 }
 
-export default function CostPage() {
+function CostPageContent() {
   const [range, setRange] = React.useState<Range>({});
   const [service, setService] = React.useState<string>("all");
   const [region, setRegion] = React.useState<string>("all");
@@ -158,6 +159,14 @@ export default function CostPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function CostPage() {
+  return (
+    <ProtectedRoute>
+      <CostPageContent />
+    </ProtectedRoute>
   );
 }
 

@@ -10,6 +10,7 @@ import logging
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.utils.helpers import get_table_date_range
+from app.api.dependencies import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/anomalies", tags=["anomalies"])
@@ -21,7 +22,8 @@ async def get_anomalies(
     min_score: float = Query(0.5, ge=0, le=1),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get detected anomalies.
@@ -95,7 +97,8 @@ async def get_anomalies(
 @router.get("/latest", response_model=schemas.APIResponse)
 async def get_latest_anomalies(
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get latest detected anomalies.
@@ -141,7 +144,8 @@ async def get_latest_anomalies(
 async def get_anomalies_by_service(
     service: str = Query(...),
     days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get anomalies for a specific service.

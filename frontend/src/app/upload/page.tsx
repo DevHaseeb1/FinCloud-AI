@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CloudUpload, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { cn } from "@/lib/utils";
 
-export default function UploadPage() {
+function UploadPageContent() {
   const { mode } = useDataMode();
   const [file, setFile] = React.useState<File | null>(null);
   const [dragActive, setDragActive] = React.useState(false);
@@ -330,5 +331,13 @@ export default function UploadPage() {
       </div>
 
     </div>
+  );
+}
+
+export default function UploadPage() {
+  return (
+    <ProtectedRoute>
+      <UploadPageContent />
+    </ProtectedRoute>
   );
 }

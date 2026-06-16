@@ -64,3 +64,73 @@ export type UploadResult = {
   dataset_id?: string;
 };
 
+// Auth Types
+export type User = {
+  id: number;
+  email: string;
+  name: string;
+  is_active: boolean;
+  role: string;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type AuthToken = {
+  access_token: string;
+  token_type: string;
+};
+
+export type AuthResponse = {
+  user: User;
+  token: AuthToken;
+};
+
+// AWS Connection types
+export type AwsConnection = {
+  id: number;
+  name: string;
+  account_id?: string;
+  role_arn?: string;
+  region: string;
+  s3_cur_bucket?: string;
+  s3_cur_prefix?: string;
+  is_active: boolean;
+  last_fetch_at?: string;
+  last_fetch_status?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AwsSetupResponse = {
+  external_id: string;
+  role_name: string;
+  cloudformation_url: string;
+  template_download_url?: string;
+};
+
+export type AwsTestCheck = {
+  check: string;
+  status: "success" | "error" | "warning" | "skipped";
+  message?: string;
+};
+
+export type AwsTestResponse = {
+  connection_id: number;
+  overall_status: "success" | "partial" | "error";
+  checks: AwsTestCheck[];
+};
+
+export type AwsFetchHistory = {
+  id: number;
+  connection_id: number;
+  source: string;
+  start_date?: string;
+  end_date?: string;
+  rows_fetched: number;
+  rows_processed: number;
+  duration_seconds?: number;
+  status: string;
+  error_message?: string;
+  created_at: string;
+};
+

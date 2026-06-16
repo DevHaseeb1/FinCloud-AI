@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     celery_broker: Optional[str] = None
     celery_backend: Optional[str] = None
 
+    # JWT Authentication
+    jwt_secret: str = "fincloud-dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440  # 24h
+
+    # AWS Integration
+    aws_credential_encryption_key: str = ""
+
     # Logging configuration
     log_level: str = "INFO"
     

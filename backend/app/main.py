@@ -13,7 +13,8 @@ import time
 
 from app.core.settings import get_settings
 from app.core.database import init_db, SessionLocal
-from app.api.routes import cost, anomaly, forecast, recommendations, upload
+from sqlalchemy import text
+from app.api.routes import cost, anomaly, forecast, recommendations, upload, aws, auth
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -123,7 +124,7 @@ async def health_check():
     try:
         # Try to get database session
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         
         return {
@@ -144,7 +145,17 @@ async def health_check():
         )
 
 
+@app.get(f"{settings.api_prefix}/health", tags=["health"])
+async def api_health_check():
+    """API-prefixed health check endpoint."""
+    return await health_check()
+
+
 # Include routers
+app.include_router(
+    auth.router,
+    prefix=settings.api_prefix,
+)
 app.include_router(
     cost.router,
     prefix=settings.api_prefix,
@@ -163,6 +174,10 @@ app.include_router(
 )
 app.include_router(
     upload.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    aws.router,
     prefix=settings.api_prefix,
 )
 

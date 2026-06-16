@@ -50,7 +50,7 @@ function KpiCard({
       )}
       style={{ transitionTimingFunction: "var(--ease-out-expo)", transitionDelay: visible ? "0ms" : "0ms" }}
     >
-      <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
+      <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm transition-all duration-250 hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(0,212,255,0.15)] hover:border-cyan/30 cursor-default" style={{ transitionTimingFunction: "var(--ease-out-expo)" }}>
         <div
           className="absolute inset-[-1px] rounded-[13px] pointer-events-none"
           style={{

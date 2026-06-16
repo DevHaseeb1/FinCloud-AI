@@ -13,9 +13,32 @@ export class ApiClientError extends Error {
 }
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1",
   timeout: 30_000,
 });
+
+// Auth interceptor — attach bearer token
+api.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("fincloud_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
+// Auth interceptor — handle 401
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("fincloud_token");
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  },
+);
 
 export async function getData<T>(
   path: string,
@@ -71,17 +94,62 @@ export async function postData<T>(
   }
 }
 
+export async function putData<T>(
+  path: string,
+  body: unknown,
+  opts?: { headers?: Record<string, string> },
+) {
+  try {
+    const res = await api.put<ApiEnvelope<T>>(path, body, {
+      headers: opts?.headers,
+    });
+    if (res.data?.status !== "success") {
+      throw new ApiClientError(res.data?.message || "Request failed", {
+        status: res.status,
+        details: res.data,
+      });
+    }
+    return res.data.data;
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function deleteData<T>(
+  path: string,
+  opts?: { headers?: Record<string, string> },
+) {
+  try {
+    const res = await api.delete<ApiEnvelope<T>>(path, {
+      headers: opts?.headers,
+    });
+    if (res.data?.status !== "success") {
+      throw new ApiClientError(res.data?.message || "Request failed", {
+        status: res.status,
+        details: res.data,
+      });
+    }
+    return res.data.data;
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 function toApiError(err: unknown) {
   if (err instanceof ApiClientError) return err;
   if (axios.isAxiosError(err)) {
     const ax = err as AxiosError<any>;
-    const message =
-      ax.response?.data?.message ||
-      ax.message ||
-      "Network error calling backend API";
+    const data = ax.response?.data;
+    let message =
+      data?.message ||
+      (Array.isArray(data?.detail) ? data.detail[0]?.msg : data?.detail) ||
+      ax.message;
+    if (!message || message === "Network Error") {
+      message = "Could not reach the server. Is the backend running?";
+    }
     return new ApiClientError(message, {
       status: ax.response?.status,
-      details: ax.response?.data,
+      details: data,
     });
   }
   return new ApiClientError("Unexpected error calling backend API", {

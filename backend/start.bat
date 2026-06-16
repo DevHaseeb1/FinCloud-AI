@@ -20,7 +20,15 @@ if not exist "venv" (
 
 REM Activate virtual environment
 echo ✓ Activating virtual environment...
-call venv\Scripts\activate.bat
+if exist "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
+) else if exist "..\.venv\Scripts\Activate.ps1" (
+    echo ✓ Activating root .venv virtual environment...
+    call ..\.venv\Scripts\activate.bat
+) else (
+    echo ⚠️ No local venv found. Please create a virtual environment in backend\venv or root\.venv.
+    exit /b 1
+)
 
 REM Upgrade pip
 echo 📦 Upgrading pip...

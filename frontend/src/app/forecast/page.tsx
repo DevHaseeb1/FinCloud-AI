@@ -1,13 +1,14 @@
 "use client";
 
 import { Radar } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ForecastAreaChart } from "@/components/charts/ForecastAreaChart";
 import { useForecast } from "@/hooks/useForecast";
 import { formatCurrency } from "@/lib/format";
 
-export default function ForecastPage() {
+function ForecastPageContent() {
   const q = useForecast();
   const currency = "USD";
 
@@ -49,6 +50,14 @@ export default function ForecastPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ForecastPage() {
+  return (
+    <ProtectedRoute>
+      <ForecastPageContent />
+    </ProtectedRoute>
   );
 }
 

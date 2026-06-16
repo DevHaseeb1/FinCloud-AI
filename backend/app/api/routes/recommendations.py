@@ -8,6 +8,7 @@ import logging
 
 from app.core.database import get_db
 from app.models import db_models, schemas
+from app.api.dependencies import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -19,7 +20,8 @@ async def get_recommendations(
     priority: int = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get cost optimization recommendations.
@@ -83,7 +85,8 @@ async def get_recommendations(
 @router.get("/high-priority", response_model=schemas.APIResponse)
 async def get_high_priority_recommendations(
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get high-priority recommendations.
@@ -134,7 +137,8 @@ async def get_high_priority_recommendations(
 @router.get("/by-service", response_model=schemas.APIResponse)
 async def get_recommendations_by_service(
     service: str = Query(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get recommendations for specific service.
@@ -184,7 +188,8 @@ async def get_recommendations_by_service(
 
 @router.get("/summary", response_model=schemas.APIResponse)
 async def get_recommendations_summary(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_authenticated_user),
 ):
     """
     Get recommendations summary.

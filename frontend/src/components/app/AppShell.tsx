@@ -2,20 +2,41 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Menu, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Menu, Search, ChevronLeft, ChevronRight, User, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { Nav } from "@/components/app/Nav";
 import { ThemeToggle } from "@/components/app/ThemeToggle";
 import { AmbientBackground } from "@/components/shell/AmbientBackground";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, logout } = useAuth();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const sidebarWidth = collapsed ? "w-16" : "w-64";
 
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const initials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "?";
+
   return (
-    <div className="flex min-h-[100dvh] w-full bg-background">
+    <div className="flex h-full w-full bg-background overflow-x-hidden">
       <AmbientBackground />
       <aside
         className={`hidden flex-col border-r border-sidebar-border bg-sidebar p-4 transition-all duration-250 md:flex ${sidebarWidth}`}
@@ -84,10 +105,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="ml-auto hidden items-center gap-2 md:flex">
             <ThemeToggle />
+            {isAuthenticated && user ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="flex size-8 items-center justify-center rounded-full bg-violet text-white text-sm font-semibold transition-transform duration-100 hover:scale-110 active:scale-95"
+                  aria-label="User menu"
+                >
+                  {initials}
+                </button>
+                {menuOpen && (
+                  <div
+                    className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-white/8 bg-surface p-1 shadow-lg"
+                    style={{
+                      animation: "fade-up 150ms var(--ease-out-expo)",
+                    }}
+                  >
+                    <Link
+                      href="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors duration-100"
+                    >
+                      <User className="size-4" />
+                      Profile
+                    </Link>
+                    <Separator className="my-1" />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-ember hover:bg-destructive/10 transition-colors duration-100"
+                    >
+                      <LogOut className="size-4" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">
+                    Sign in
+                  </Button>
+                </Link>
+                <Link href="/signup">
+                  <Button variant="default" size="sm">
+                    Sign up
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </header>
 
-        <main className="relative z-10 flex-1 px-4 py-6 md:px-6">{children}</main>
+        <main className="relative z-10 flex-1 overflow-y-auto px-4 py-6 md:px-6">{children}</main>
       </div>
     </div>
   );
