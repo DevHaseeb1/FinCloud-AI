@@ -9,6 +9,7 @@ import logging
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.api.dependencies import require_authenticated_user
+from app.models.db_models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -21,7 +22,7 @@ async def get_recommendations(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost optimization recommendations.
@@ -38,7 +39,8 @@ async def get_recommendations(
     """
     try:
         query = db.query(db_models.Recommendation).filter(
-            db_models.Recommendation.confidence_score >= min_confidence
+            db_models.Recommendation.confidence_score >= min_confidence,
+            db_models.Recommendation.user_id == current_user.id,
         )
         
         if priority is not None:
@@ -86,7 +88,7 @@ async def get_recommendations(
 async def get_high_priority_recommendations(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get high-priority recommendations.
@@ -100,7 +102,8 @@ async def get_high_priority_recommendations(
     """
     try:
         recommendations = db.query(db_models.Recommendation).filter(
-            db_models.Recommendation.priority == 1
+            db_models.Recommendation.priority == 1,
+            db_models.Recommendation.user_id == current_user.id,
         ).order_by(
             db_models.Recommendation.estimated_savings.desc()
         ).limit(limit).all()
@@ -138,7 +141,7 @@ async def get_high_priority_recommendations(
 async def get_recommendations_by_service(
     service: str = Query(...),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get recommendations for specific service.
@@ -152,7 +155,8 @@ async def get_recommendations_by_service(
     """
     try:
         recommendations = db.query(db_models.Recommendation).filter(
-            db_models.Recommendation.service == service
+            db_models.Recommendation.service == service,
+            db_models.Recommendation.user_id == current_user.id,
         ).order_by(
             db_models.Recommendation.estimated_savings.desc()
         ).all()
@@ -189,7 +193,7 @@ async def get_recommendations_by_service(
 @router.get("/summary", response_model=schemas.APIResponse)
 async def get_recommendations_summary(
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get recommendations summary.
@@ -198,7 +202,9 @@ async def get_recommendations_summary(
         Recommendations summary
     """
     try:
-        all_recs = db.query(db_models.Recommendation).all()
+        all_recs = db.query(db_models.Recommendation).filter(
+            db_models.Recommendation.user_id == current_user.id,
+        ).all()
         
         total_savings = sum(r.estimated_savings for r in all_recs)
         by_priority = {}
@@ -231,3 +237,33 @@ async def get_recommendations_summary(
     except Exception as e:
         logger.error(f"Error getting recommendations summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{recommendation_id}", response_model=schemas.APIResponse)
+async def get_recommendation_by_id(
+    recommendation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated_user),
+):
+    """Get a single recommendation by ID."""
+    rec = db.query(db_models.Recommendation).filter(
+        db_models.Recommendation.id == recommendation_id,
+        db_models.Recommendation.user_id == current_user.id,
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    return schemas.APIResponse(
+        status="success",
+        data={
+            "id": rec.id,
+            "service": rec.service,
+            "region": rec.region,
+            "recommendation_type": rec.recommendation_type,
+            "suggestion": rec.suggestion,
+            "estimated_savings": round(rec.estimated_savings, 2),
+            "confidence_score": round(rec.confidence_score, 4),
+            "priority": rec.priority,
+            "created_at": rec.created_at.isoformat(),
+        },
+        message="Recommendation retrieved successfully",
+    )

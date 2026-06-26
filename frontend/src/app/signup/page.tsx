@@ -8,25 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-function AmbientOrbs({ reduced }: { reduced: boolean }) {
-  return (
-    <div className="absolute inset-0 overflow-hidden" aria-hidden>
-      <div
-        className={`absolute -left-32 -top-32 size-96 rounded-full bg-cyan/10 blur-3xl ${
-          reduced ? "" : "animate-particle-drift"
-        }`}
-        style={{ animationDelay: "0s" }}
-      />
-      <div
-        className={`absolute -bottom-32 -right-32 size-96 rounded-full bg-violet/10 blur-3xl ${
-          reduced ? "" : "animate-particle-drift"
-        }`}
-        style={{ animationDelay: "2s" }}
-      />
-    </div>
-  );
-}
+import { AuthFeaturesPanel } from "@/components/auth/AuthFeaturesPanel";
 
 function computeStrength(pw: string): number {
   let score = 0;
@@ -144,15 +126,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-[100dvh] w-full">
-      {/* Left Panel */}
-      <div className="relative hidden w-1/2 flex-col items-center justify-center bg-[#0A0E1A] p-12 lg:flex">
-        <AmbientOrbs reduced={reduced} />
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-4 size-14 rounded-xl bg-gradient-to-br from-cyan to-violet" />
-          <h1 className="text-2xl font-bold text-white">FinCloud-AI</h1>
-          <p className="mt-2 text-sm text-white/60">Start monitoring your cloud spend</p>
-        </div>
-      </div>
+      <AuthFeaturesPanel variant="signup" />
 
       {/* Right Panel */}
       <div className="flex w-full items-center justify-center bg-surface p-6 lg:w-1/2">

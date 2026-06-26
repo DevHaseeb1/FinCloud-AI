@@ -21,6 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "FinCloud-AI",
   description: "FinOps analytics with anomaly detection, forecasting, and recommendations.",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({
@@ -34,7 +35,7 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="h-full flex flex-col overflow-hidden">
+      <body className="h-full flex flex-col">
         <TooltipProvider>
           <AppProviders>
             <AuthLayoutWrapper>

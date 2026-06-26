@@ -110,6 +110,8 @@ class AwsCurReaderService:
         if "region" not in df.columns:
             df["region"] = "unknown"
 
-        df = df[["timestamp", "service", "region", "cost", "usage_quantity"]]
+        keep_cols = ["timestamp", "service", "region", "cost", "usage_quantity", "account_id", "usage_type", "instance_type"]
+        available = [c for c in keep_cols if c in df.columns]
+        df = df[available]
 
         return df

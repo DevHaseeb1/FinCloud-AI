@@ -11,6 +11,7 @@ import logging
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.api.dependencies import require_authenticated_user
+from app.models.db_models import User
 from app.utils.helpers import (
     aggregate_by_service, 
     aggregate_by_region, 
@@ -24,11 +25,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cost", tags=["cost"])
 
 
+@router.get("", response_model=schemas.APIResponse)
+async def get_cost_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated_user),
+):
+    """Get cost overview (total, monthly, trends)."""
+    data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
+    if data_max is None:
+        return schemas.APIResponse(
+            status="success",
+            data={"total_cost": 0, "monthly_cost": 0, "cost_change_pct": 0},
+            message="No cost data found",
+        )
+    start_date = data_max - timedelta(days=30)
+    costs = db.query(db_models.ProcessedCostData).filter(
+        db_models.ProcessedCostData.date >= start_date,
+        db_models.ProcessedCostData.user_id == current_user.id,
+    ).all()
+    total_cost = sum(c.total_cost for c in costs)
+    avg_daily = total_cost / len(costs) if costs else 0
+    return schemas.APIResponse(
+        status="success",
+        data={
+            "total_cost": round(total_cost, 2),
+            "monthly_cost": round(avg_daily * 30, 2),
+            "cost_change_pct": 0,
+        },
+        message="Cost overview retrieved",
+    )
+
+
 @router.get("/summary", response_model=schemas.APIResponse)
 async def get_cost_summary(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost summary for specified period.
@@ -41,7 +73,7 @@ async def get_cost_summary(
         Cost summary response
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
         if data_max is None:
             return schemas.APIResponse(
                 status="success",
@@ -53,7 +85,8 @@ async def get_cost_summary(
         
         # Query processed costs
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date
+            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
         
         if not costs:
@@ -89,7 +122,7 @@ async def get_cost_timeseries(
     service: str = Query(None),
     region: str = Query(None),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost time series data.
@@ -104,7 +137,7 @@ async def get_cost_timeseries(
         Time series data
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
         if data_max is None:
             return schemas.APIResponse(
                 status="success",
@@ -115,7 +148,8 @@ async def get_cost_timeseries(
         start_date = data_max - timedelta(days=days)
         
         query = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date
+            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.user_id == current_user.id,
         )
         
         if service:
@@ -147,7 +181,7 @@ async def get_cost_timeseries(
 async def get_service_breakdown(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost breakdown by service.
@@ -160,7 +194,7 @@ async def get_service_breakdown(
         Service breakdown
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
         if data_max is None:
             return schemas.APIResponse(
                 status="success",
@@ -171,7 +205,8 @@ async def get_service_breakdown(
         start_date = data_max - timedelta(days=days)
         
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date
+            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
         
         # Aggregate by service
@@ -205,7 +240,7 @@ async def get_service_breakdown(
 async def get_region_breakdown(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost breakdown by region.
@@ -218,7 +253,7 @@ async def get_region_breakdown(
         Region breakdown
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date")
+        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
         if data_max is None:
             return schemas.APIResponse(
                 status="success",
@@ -229,7 +264,8 @@ async def get_region_breakdown(
         start_date = data_max - timedelta(days=days)
         
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date
+            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
         
         # Aggregate by region

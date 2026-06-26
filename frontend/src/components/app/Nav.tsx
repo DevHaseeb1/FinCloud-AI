@@ -14,7 +14,7 @@ type NavItem = {
 };
 
 const mainItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: <Gauge className="size-4" /> },
+  { href: "/dashboard", label: "Dashboard", icon: <Gauge className="size-4" /> },
   { href: "/cost", label: "Cost Analytics", icon: <BarChart3 className="size-4" /> },
   { href: "/anomalies", label: "Anomalies", icon: <TriangleAlert className="size-4" /> },
   { href: "/forecast", label: "Forecast", icon: <Radar className="size-4" /> },

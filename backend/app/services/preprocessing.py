@@ -137,6 +137,9 @@ class DataValidator:
         if df["cost"].isna().any():
             return False, "Invalid cost values"
 
+        if (df["cost"] < 0).any():
+            return False, "Negative costs found"
+
         if df["timestamp"].isna().any():
             return False, "Invalid timestamps"
 

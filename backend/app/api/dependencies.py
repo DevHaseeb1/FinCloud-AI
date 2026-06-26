@@ -2,10 +2,13 @@
 FastAPI dependencies for authentication and authorization.
 """
 
-from fastapi import Depends, HTTPException, status
+import time
+import logging
+from collections import defaultdict
+
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-import logging
 
 from app.core.database import get_db
 from app.models.db_models import User
@@ -13,6 +16,29 @@ from app.models.schemas import TokenPayload
 from app.utils.auth_utils import decode_token
 
 logger = logging.getLogger(__name__)
+
+_rate_store: dict = defaultdict(list)
+
+
+class RateLimiter:
+    """Simple in-memory rate limiter per IP."""
+
+    def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+
+    async def __call__(self, request: Request):
+        ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window_start = now - self.window_seconds
+        timestamps = _rate_store[ip]
+        timestamps[:] = [t for t in timestamps if t > window_start]
+        if len(timestamps) >= self.max_requests:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many requests. Please try again later.",
+            )
+        timestamps.append(now)
 
 security = HTTPBearer(auto_error=False)
 

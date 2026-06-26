@@ -72,15 +72,7 @@ function KpiCard({
             <Skeleton className="h-8 w-32" />
           ) : (
             <div className="text-2xl font-bold tracking-tight font-mono" aria-live="polite" aria-atomic="true">
-              <span
-                className={cn(
-                  !reduced && "bg-[length:200%_100%] bg-clip-text text-transparent bg-gradient-to-r from-foreground via-cyan to-foreground",
-                  !reduced && "animate-value-shimmer",
-                )}
-                style={{
-                  backgroundImage: reduced ? "none" : undefined,
-                }}
-              >
+              <span>
                 {formatFn ? formatFn(counted) : counted}
               </span>
             </div>

@@ -25,16 +25,34 @@ export type BreakdownItem = {
   pct?: number;
 };
 
+export type AnomalyExplanation = {
+  cost_zscore: number;
+  cost_ratio_p95: number;
+  cost_ratio_mean: number;
+  daily_spend_zscore: number;
+  cost_per_unit_ratio: number;
+  error_count: number;
+  human_readable: string;
+};
+
 export type Anomaly = {
   id?: string | number;
   timestamp?: string;
+  date?: string;
   service?: string;
   region?: string;
   cost?: number;
+  cost_value?: number;
   expected_cost?: number;
   anomaly_score?: number;
   severity?: "low" | "medium" | "high";
   description?: string;
+  explanation?: AnomalyExplanation | null;
+  cost_zscore?: number | null;
+  cost_ratio_p95?: number | null;
+  daily_spend_zscore?: number | null;
+  cost_per_unit_ratio?: number | null;
+  error_count?: number | null;
 };
 
 export type ForecastPoint = {

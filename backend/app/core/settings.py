@@ -40,16 +40,19 @@ class Settings(BaseSettings):
     celery_backend: Optional[str] = None
 
     # JWT Authentication
-    jwt_secret: str = "fincloud-dev-secret-change-in-production"
+    jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440  # 24h
 
     # AWS Integration
     aws_credential_encryption_key: str = ""
 
+    # CORS configuration
+    cors_origins: list = ["http://localhost:3000"]
+
     # Logging configuration
     log_level: str = "INFO"
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = False

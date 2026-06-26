@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStoredToken(res.token.access_token);
       setToken(res.token.access_token);
       setUser(res.user);
-      router.push("/");
+      router.push("/dashboard");
     },
     [router],
   );
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStoredToken(res.token.access_token);
       setToken(res.token.access_token);
       setUser(res.user);
-      router.push("/");
+      router.push("/dashboard");
     },
     [router],
   );

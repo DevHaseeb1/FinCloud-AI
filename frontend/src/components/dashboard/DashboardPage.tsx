@@ -14,7 +14,7 @@ export function DashboardPage() {
   const { user } = useAuth();
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-8 pb-8 overflow-x-hidden">
       {/* Decorative background */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -left-32 -top-32 size-96 rounded-full bg-primary/5 blur-3xl" />

@@ -10,9 +10,11 @@ import logging
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
+from app.core.settings import get_settings
 from app.models import db_models, schemas
 from app.services.preprocessing import DataPreprocessor, DataValidator
 from app.api.dependencies import require_authenticated_user
+from app.models.db_models import User
 from app.services.anomaly_detection import AnomalyDetectionService
 from app.services.forecasting import ForecastingService
 from app.services.optimization import OptimizationService
@@ -54,6 +56,19 @@ AWS_COLUMN_PRIORITIES = {
         "line_item_normalized_usage_amount",
         "reservation_unused_quantity",
     ],
+    "account_id": [
+        "line_item_usage_account_id",
+        "bill_payer_account_id",
+    ],
+    "usage_type": [
+        "line_item_usage_type",
+    ],
+    "instance_type": [
+        "product_instance_type",
+    ],
+    "environment": [
+        "resource_tags_user_environment",
+    ],
 }
 
 
@@ -91,7 +106,8 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 async def upload_cost_data(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    settings = Depends(get_settings),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Simplified CSV ingestion endpoint handling only 5 required columns:
@@ -118,7 +134,8 @@ async def upload_cost_data(
     try:
         # ✅ 1. VALIDATE FILE TYPE
         filename = file.filename.lower()
-        if not filename.endswith((".csv", ".xls", ".xlsx")):
+        ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+        if ext not in settings.allowed_file_extensions:
             raise HTTPException(status_code=400, detail="Only CSV or Excel files are supported")
 
         # ✅ 2. READ FILE SAFELY
@@ -159,9 +176,10 @@ async def upload_cost_data(
             df["region"] = "unknown"
 
         # ✅ 5. SELECT ONLY NEEDED COLUMNS (ignore others)
-        needed_cols = ["timestamp", "service", "region", "total_cost"]
-        if "usage_quantity" in df.columns:
-            needed_cols.append("usage_quantity")
+        needed_cols = ["timestamp", "service", "region", "total_cost", "account_id", "usage_type", "instance_type"]
+        for col in ["usage_quantity", "environment"]:
+            if col in df.columns:
+                needed_cols.append(col)
         df = df[needed_cols].copy()
         logger.info(f"✅ Selected columns: {list(df.columns)}")
 
@@ -281,11 +299,14 @@ async def upload_cost_data(
         for idx, row in df.iterrows():
             try:
                 record = db_models.RawCostData(
+                    user_id=current_user.id,
                     timestamp=row["timestamp"],
                     service=row["service"],
                     region=row["region"],
-                    cost=row["total_cost"],  # Rename: total_cost → cost
+                    cost=row["total_cost"],
                     usage_quantity=row.get("usage_quantity") if "usage_quantity" in row.index else None,
+                    account_id=str(row.get("account_id")) if "account_id" in row.index and pd.notna(row.get("account_id")) else None,
+                    instance_type=str(row.get("instance_type")) if "instance_type" in row.index and pd.notna(row.get("instance_type")) else None,
                 )
                 raw_records.append(record)
             except Exception as e:
@@ -308,6 +329,7 @@ async def upload_cost_data(
         processed_records = []
         for idx, row in processed_df.iterrows():
             processed_records.append(db_models.ProcessedCostData(
+                user_id=current_user.id,
                 date=row["date"],
                 service=row["service"],
                 region=row["region"],
@@ -341,11 +363,20 @@ async def upload_cost_data(
         try:
             logger.info("🤖 Starting ML model training and inference...")
             
-            # Clear old predictions for this date range
+            # Clear old predictions for this user and date range
             cutoff_date = processed_df['date'].min()
-            db.query(db_models.Anomaly).filter(db_models.Anomaly.date >= cutoff_date).delete()
-            db.query(db_models.Forecast).filter(db_models.Forecast.date >= cutoff_date).delete()
-            db.query(db_models.Recommendation).filter(db_models.Recommendation.created_at >= datetime.utcnow() - timedelta(hours=1)).delete()
+            db.query(db_models.Anomaly).filter(
+                db_models.Anomaly.user_id == current_user.id,
+                db_models.Anomaly.date >= cutoff_date
+            ).delete()
+            db.query(db_models.Forecast).filter(
+                db_models.Forecast.user_id == current_user.id,
+                db_models.Forecast.date >= cutoff_date
+            ).delete()
+            db.query(db_models.Recommendation).filter(
+                db_models.Recommendation.user_id == current_user.id,
+                db_models.Recommendation.created_at >= datetime.utcnow() - timedelta(hours=1)
+            ).delete()
             db.commit()
             logger.info("✅ Cleared old predictions")
             
@@ -353,30 +384,43 @@ async def upload_cost_data(
             try:
                 logger.info("🔍 Running anomaly detection...")
                 anomaly_service = AnomalyDetectionService(contamination=0.1)
-                
-                if len(processed_df) >= 5:  # Need at least 5 samples
-                    anomaly_service.train(processed_df)
-                    anomaly_results = anomaly_service.detect_anomalies(processed_df)
-                    
-                    # Save anomalies to database
+
+                # Build anomaly input from raw data (before aggregation),
+                # mapping column names to what the service expects
+                anomaly_input_cols = {"timestamp", "cost", "usage_amount", "account_id", "service", "usage_type", "region"}
+                anomaly_df = df[["timestamp", "service", "region"]].copy()
+                anomaly_df["cost"] = df["total_cost"]
+                anomaly_df["usage_amount"] = df["usage_quantity"] if "usage_quantity" in df.columns else 0.0
+                anomaly_df["account_id"] = df["account_id"].fillna("unknown").astype(str) if "account_id" in df.columns else "unknown"
+                anomaly_df["usage_type"] = df["usage_type"].fillna("unknown").astype(str) if "usage_type" in df.columns else "unknown"
+                if "environment" in df.columns:
+                    anomaly_df["environment"] = df["environment"].fillna("unknown").astype(str)
+                if "instance_type" in df.columns:
+                    anomaly_df["instance_type"] = df["instance_type"].fillna("unknown").astype(str)
+
+                if len(anomaly_df) >= 10:
+                    anomaly_service.train(anomaly_df)
+                    anomaly_results = anomaly_service.detect_anomalies(anomaly_df)
+
                     anomaly_records = []
                     for idx, row in anomaly_results.iterrows():
                         anomaly_records.append(db_models.Anomaly(
+                            user_id=current_user.id,
                             date=row['date'],
                             service=row['service'],
                             region=row['region'],
                             anomaly_score=float(row.get('anomaly_score', 0)),
                             anomaly_flag=bool(row.get('anomaly_flag', False)),
-                            cost_value=float(row['total_cost']),
+                            cost_value=float(row['cost']),
                             explanation=f"Anomaly detected for {row['service']} in {row['region']}"
                         ))
-                    
+
                     if anomaly_records:
                         db.bulk_save_objects(anomaly_records)
                         db.commit()
                         logger.info(f"✅ Saved {len(anomaly_records)} anomaly records")
                 else:
-                    logger.warning(f"⚠️  Insufficient data for anomaly detection ({len(processed_df)} < 5)")
+                    logger.warning(f"⚠️  Insufficient data for anomaly detection ({len(anomaly_df)} < 10)")
             except Exception as e:
                 logger.warning(f"⚠️  Anomaly detection failed: {e}")
             
@@ -393,6 +437,7 @@ async def upload_cost_data(
                     forecast_records = []
                     for idx, row in forecast_result.iterrows():
                         forecast_records.append(db_models.Forecast(
+                            user_id=current_user.id,
                             date=row['date'],
                             service='all',
                             region='all',
@@ -422,6 +467,7 @@ async def upload_cost_data(
                     rec_records = []
                     for rec in recommendations:
                         rec_records.append(db_models.Recommendation(
+                            user_id=current_user.id,
                             service=rec.get('service', 'all'),
                             region=rec.get('region', 'all'),
                             recommendation_type=rec.get('recommendation_type', 'optimization'),

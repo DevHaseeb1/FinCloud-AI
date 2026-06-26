@@ -11,12 +11,18 @@ from typing import List, Dict, Optional
 # backend/app/utils/helpers.py — add this function
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 
-def get_table_date_range(db: Session, model, date_column_name: str = "date"):
+def get_table_date_range(db: Session, model, date_column_name: str = "date", user_id: int = None):
     """Get actual min/max date from any model's date column."""
+    valid_columns = {c.name for c in inspect(model).c}
+    if date_column_name not in valid_columns:
+        raise ValueError(f"Column '{date_column_name}' not found on {model.__name__}")
     date_col = getattr(model, date_column_name)
-    result = db.query(func.min(date_col), func.max(date_col)).first()
+    query = db.query(func.min(date_col), func.max(date_col))
+    if user_id is not None and "user_id" in valid_columns:
+        query = query.filter(model.user_id == user_id)
+    result = query.first()
     return result[0], result[1]  # (min_date, max_date) — both None if table is empty
 
 logger = logging.getLogger(__name__)

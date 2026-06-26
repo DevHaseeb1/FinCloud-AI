@@ -19,6 +19,7 @@ from app.core.database import get_db
 from app.core.aws_auth import encrypt_credential, decrypt_credential, create_aws_client
 from app.api.dependencies import require_authenticated_user
 from app.models import db_models, schemas
+from app.models.db_models import User
 from app.services.aws_cost_explorer import AwsCostExplorerService
 from app.services.aws_cur_reader import AwsCurReaderService
 from app.services.preprocessing import DataPreprocessor
@@ -54,7 +55,7 @@ def get_cloudformation_template():
 
 @router.post("/connections/setup", response_model=schemas.APIResponse)
 def setup_connection(
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """Generate external_id, role_name, and CloudFormation URL for a new connection."""
     from app.core.settings import get_settings
@@ -84,10 +85,13 @@ def setup_connection(
 def test_connection(
     req: schemas.AwsTestRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """Validate STS AssumeRole, Cost Explorer, and CUR access."""
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == req.connection_id).first() if req.connection_id else None
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == req.connection_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first() if req.connection_id else None
 
     role_arn = req.role_arn or (_decrypt(conn.role_arn) if conn else None)
     external_id = req.external_id or (conn.external_id if conn else None)
@@ -229,7 +233,7 @@ def test_connection(
 def create_connection(
     req: schemas.AwsConnectionCreate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """Register a new AWS account connection."""
     access_key_enc = None
@@ -245,6 +249,7 @@ def create_connection(
         role_arn_enc = None
 
     conn = db_models.AwsConnection(
+        user_id=current_user.id,
         name=req.name,
         account_id=req.account_id,
         role_arn=role_arn_enc,
@@ -269,9 +274,14 @@ def create_connection(
 
 
 @router.get("/connections", response_model=schemas.APIResponse)
-def list_connections(db: Session = Depends(get_db), _: None = Depends(require_authenticated_user)):
+def list_connections(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated_user),
+):
     """List all registered AWS connections."""
-    conns = db.query(db_models.AwsConnection).order_by(db_models.AwsConnection.created_at.desc()).all()
+    conns = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.user_id == current_user.id,
+    ).order_by(db_models.AwsConnection.created_at.desc()).all()
     return schemas.APIResponse(
         status="success",
         data={
@@ -283,9 +293,16 @@ def list_connections(db: Session = Depends(get_db), _: None = Depends(require_au
 
 
 @router.get("/connections/{conn_id}", response_model=schemas.APIResponse)
-def get_connection(conn_id: int, db: Session = Depends(get_db), _: None = Depends(require_authenticated_user)):
+def get_connection(
+    conn_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated_user),
+):
     """Get a specific AWS connection."""
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == conn_id).first()
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == conn_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
     return schemas.APIResponse(
@@ -298,14 +315,18 @@ def get_connection(conn_id: int, db: Session = Depends(get_db), _: None = Depend
 def get_connection_fetch_history(
     conn_id: int,
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """Get fetch history for a connection."""
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == conn_id).first()
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == conn_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
     history = db.query(db_models.AwsFetchHistory).filter(
-        db_models.AwsFetchHistory.connection_id == conn_id
+        db_models.AwsFetchHistory.connection_id == conn_id,
+        db_models.AwsFetchHistory.user_id == current_user.id,
     ).order_by(db_models.AwsFetchHistory.created_at.desc()).limit(50).all()
     return schemas.APIResponse(
         status="success",
@@ -322,10 +343,13 @@ def update_connection(
     conn_id: int,
     req: schemas.AwsConnectionUpdate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """Update an existing AWS connection."""
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == conn_id).first()
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == conn_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
 
@@ -353,9 +377,16 @@ def update_connection(
 
 
 @router.delete("/connections/{conn_id}", response_model=schemas.APIResponse)
-def delete_connection(conn_id: int, db: Session = Depends(get_db), _: None = Depends(require_authenticated_user)):
+def delete_connection(
+    conn_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_authenticated_user),
+):
     """Delete an AWS connection."""
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == conn_id).first()
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == conn_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
     db.delete(conn)
@@ -370,14 +401,17 @@ def delete_connection(conn_id: int, db: Session = Depends(get_db), _: None = Dep
 def fetch_billing_data(
     req: schemas.AwsFetchRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Fetch billing data from AWS for a given connection.
     Supports Cost Explorer API (default) and CUR from S3.
     Runs the full ETL + ML pipeline on fetched data.
     """
-    conn = db.query(db_models.AwsConnection).filter(db_models.AwsConnection.id == req.connection_id).first()
+    conn = db.query(db_models.AwsConnection).filter(
+        db_models.AwsConnection.id == req.connection_id,
+        db_models.AwsConnection.user_id == current_user.id,
+    ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
     if not conn.is_active:
@@ -396,6 +430,7 @@ def fetch_billing_data(
     fetch_start = time.time()
 
     fetch_record = db_models.AwsFetchHistory(
+        user_id=current_user.id,
         connection_id=conn.id,
         source="",
         start_date=datetime.strptime(start_date, "%Y-%m-%d") if isinstance(start_date, str) else start_date,
@@ -467,11 +502,14 @@ def fetch_billing_data(
         raw_records = []
         for _, row in df.iterrows():
             raw_records.append(db_models.RawCostData(
+                user_id=current_user.id,
                 timestamp=pd.Timestamp(row.get("timestamp", start_date)),
                 service=str(row.get("service", "unknown")),
                 region=str(row.get("region", "unknown")),
                 cost=float(row.get("cost", 0)),
                 usage_quantity=float(row.get("usage_quantity", 0)) if "usage_quantity" in row.index else None,
+                account_id=str(row.get("account_id")) if pd.notna(row.get("account_id")) else None,
+                instance_type=str(row.get("instance_type")) if pd.notna(row.get("instance_type")) else None,
             ))
 
         db.bulk_save_objects(raw_records)
@@ -480,6 +518,7 @@ def fetch_billing_data(
         processed_records = []
         for _, row in processed_df.iterrows():
             processed_records.append(db_models.ProcessedCostData(
+                user_id=current_user.id,
                 date=row["date"],
                 service=row["service"],
                 region=row["region"],
@@ -498,19 +537,31 @@ def fetch_billing_data(
         fetch_record.rows_processed = rows_ingested
 
         try:
-            if len(processed_df) >= 5:
+            # Build anomaly input from raw data (before aggregation)
+            anomaly_df = df[["timestamp", "service", "region"]].copy()
+            anomaly_df["cost"] = df["cost"]
+            anomaly_df["usage_amount"] = df["usage_quantity"] if "usage_quantity" in df.columns else 0.0
+            anomaly_df["account_id"] = df["account_id"].fillna("unknown").astype(str) if "account_id" in df.columns else "unknown"
+            anomaly_df["usage_type"] = df["usage_type"].fillna("unknown").astype(str) if "usage_type" in df.columns else "unknown"
+            if "environment" in df.columns:
+                anomaly_df["environment"] = df["environment"].fillna("unknown").astype(str)
+            if "instance_type" in df.columns:
+                anomaly_df["instance_type"] = df["instance_type"].fillna("unknown").astype(str)
+
+            if len(anomaly_df) >= 10:
                 anomaly_svc = AnomalyDetectionService(contamination=0.1)
-                anomaly_svc.train(processed_df)
-                anomaly_results = anomaly_svc.detect_anomalies(processed_df)
+                anomaly_svc.train(anomaly_df)
+                anomaly_results = anomaly_svc.detect_anomalies(anomaly_df)
                 anom_records = []
                 for _, row in anomaly_results.iterrows():
                     anom_records.append(db_models.Anomaly(
+                        user_id=current_user.id,
                         date=row["date"],
                         service=row["service"],
                         region=row["region"],
                         anomaly_score=float(row.get("anomaly_score", 0)),
                         anomaly_flag=bool(row.get("anomaly_flag", False)),
-                        cost_value=float(row["total_cost"]),
+                        cost_value=float(row["cost"]),
                         explanation=f"Anomaly detected for {row['service']} in {row['region']}",
                     ))
                 if anom_records:
@@ -527,6 +578,7 @@ def fetch_billing_data(
                 fc_records = []
                 for _, row in forecast_result.iterrows():
                     fc_records.append(db_models.Forecast(
+                        user_id=current_user.id,
                         date=row["date"],
                         service="all",
                         region="all",
@@ -547,6 +599,7 @@ def fetch_billing_data(
                 rec_records = []
                 for rec in recommendations:
                     rec_records.append(db_models.Recommendation(
+                        user_id=current_user.id,
                         service=rec.get("service", "all"),
                         region=rec.get("region", "all"),
                         recommendation_type=rec.get("recommendation_type", "optimization"),

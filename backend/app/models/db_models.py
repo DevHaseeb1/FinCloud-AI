@@ -2,7 +2,8 @@
 SQLAlchemy database models.
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 from app.core.database import Base
@@ -29,6 +30,7 @@ class RawCostData(Base):
     __tablename__ = "raw_cost_data"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     timestamp = Column(DateTime, nullable=False, index=True)
     service = Column(String(100), nullable=False, index=True)
     region = Column(String(100), nullable=False, index=True)
@@ -38,6 +40,7 @@ class RawCostData(Base):
     account_id = Column(String(100), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    user = relationship("User", backref="raw_cost_data")
 
 
 class ProcessedCostData(Base):
@@ -46,6 +49,7 @@ class ProcessedCostData(Base):
     __tablename__ = "processed_cost_data"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(DateTime, nullable=False, index=True)
     service = Column(String(100), nullable=False, index=True)
     region = Column(String(100), nullable=False, index=True)
@@ -58,14 +62,16 @@ class ProcessedCostData(Base):
     usage_quantity = Column(Float, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    user = relationship("User", backref="processed_cost_data")
 
 
 class Anomaly(Base):
     """Detected cost anomalies."""
-    
+
     __tablename__ = "anomalies"
-    
+
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(DateTime, nullable=False, index=True)
     service = Column(String(100), nullable=False, index=True)
     region = Column(String(100), nullable=False, index=True)
@@ -73,7 +79,13 @@ class Anomaly(Base):
     anomaly_flag = Column(Boolean, nullable=False, default=False)
     cost_value = Column(Float, nullable=False)
     explanation = Column(Text, nullable=True)
+    cost_zscore = Column(Float, nullable=True, index=True)
+    cost_ratio_p95 = Column(Float, nullable=True, index=True)
+    daily_spend_zscore = Column(Float, nullable=True, index=True)
+    cost_per_unit_ratio = Column(Float, nullable=True, index=True)
+    error_count = Column(Integer, nullable=True, index=True)
     created_at = Column(DateTime, server_default=func.now())
+    user = relationship("User", backref="anomalies")
 
 
 class Forecast(Base):
@@ -82,6 +94,7 @@ class Forecast(Base):
     __tablename__ = "forecasts"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     date = Column(DateTime, nullable=False, index=True)
     service = Column(String(100), nullable=False, index=True)
     region = Column(String(100), nullable=False, index=True)
@@ -89,6 +102,7 @@ class Forecast(Base):
     lower_bound = Column(Float, nullable=False)
     upper_bound = Column(Float, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    user = relationship("User", backref="forecasts")
 
 
 class Recommendation(Base):
@@ -97,6 +111,7 @@ class Recommendation(Base):
     __tablename__ = "recommendations"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     service = Column(String(100), nullable=False, index=True)
     region = Column(String(100), nullable=False, index=True)
     recommendation_type = Column(String(100), nullable=False)
@@ -105,6 +120,7 @@ class Recommendation(Base):
     confidence_score = Column(Float, nullable=False)
     priority = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
+    user = relationship("User", backref="recommendations")
 
 
 class AwsConnection(Base):
@@ -113,6 +129,7 @@ class AwsConnection(Base):
     __tablename__ = "aws_connections"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     account_id = Column(String(100), nullable=True, index=True)
     role_arn = Column(String(500), nullable=True)
@@ -128,6 +145,7 @@ class AwsConnection(Base):
     last_fetch_status = Column(String(50), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    user = relationship("User", backref="aws_connections")
 
 
 class AwsFetchHistory(Base):
@@ -136,6 +154,7 @@ class AwsFetchHistory(Base):
     __tablename__ = "aws_fetch_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     connection_id = Column(Integer, nullable=False, index=True)
     source = Column(String(50), nullable=False)
     start_date = Column(DateTime, nullable=True)
@@ -146,3 +165,4 @@ class AwsFetchHistory(Base):
     status = Column(String(50), nullable=False, default="pending")
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+    user = relationship("User", backref="aws_fetch_history")

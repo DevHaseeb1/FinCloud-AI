@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { AppShell } from "@/components/app/AppShell";
 import { PageTransition } from "@/components/shell/PageTransition";
 
-const AUTH_PATHS = ["/login", "/signup"];
+const NO_SHELL_PATHS = ["/login", "/signup", "/"];
 
 export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = AUTH_PATHS.includes(pathname);
+  const noShell = NO_SHELL_PATHS.includes(pathname);
 
-  if (isAuthPage) {
+  if (noShell) {
     return <>{children}</>;
   }
 

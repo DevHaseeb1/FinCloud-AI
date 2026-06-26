@@ -2,7 +2,7 @@
 Pydantic schemas for request/response validation.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 import re
@@ -60,8 +60,7 @@ class UserOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -98,8 +97,7 @@ class RawCostDataResponse(RawCostDataBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Processed Cost Data Schemas
@@ -123,8 +121,7 @@ class ProcessedCostDataResponse(ProcessedCostDataBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Anomaly Schemas
@@ -144,8 +141,7 @@ class AnomalyResponse(AnomalyBase):
     id: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Forecast Schemas
@@ -164,8 +160,7 @@ class ForecastResponse(ForecastBase):
     id: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Recommendation Schemas
@@ -185,8 +180,7 @@ class RecommendationResponse(RecommendationBase):
     id: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # API Response Schemas
@@ -301,8 +295,7 @@ class AwsConnectionResponse(BaseModel):
         except Exception:
             return v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AwsConnectionSetupResponse(BaseModel):

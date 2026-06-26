@@ -73,7 +73,8 @@ def generate_sample_data(num_records):
 
 @cli.command()
 @click.option('--file', required=True, help='CSV file path')
-def import_data(file):
+@click.option('--user-id', default=1, help='User ID to associate data with')
+def import_data(file, user_id):
     """Import cost data from CSV."""
     try:
         from app.core.database import SessionLocal
@@ -99,6 +100,7 @@ def import_data(file):
         click.echo("💾 Saving raw data...")
         for _, row in raw_df.iterrows():
             raw_cost = db_models.RawCostData(
+                user_id=user_id,
                 timestamp=pd.to_datetime(row['timestamp']),
                 service=row['service'],
                 region=row['region'],
@@ -113,6 +115,7 @@ def import_data(file):
         click.echo("💾 Saving processed data...")
         for _, row in processed_df.iterrows():
             processed_cost = db_models.ProcessedCostData(
+                user_id=user_id,
                 date=row['date'],
                 service=row['service'],
                 region=row['region'],

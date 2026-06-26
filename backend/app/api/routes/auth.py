@@ -10,14 +10,18 @@ from app.core.database import get_db
 from app.models.db_models import User
 from app.models.schemas import UserCreate, UserLogin, UserOut, Token
 from app.utils.auth_utils import hash_password, verify_password, create_access_token
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, RateLimiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=dict)
-async def signup(req: UserCreate, db: Session = Depends(get_db)):
+async def signup(
+    req: UserCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(RateLimiter(max_requests=5, window_seconds=300)),
+):
     """
     Register a new user account.
     Returns user profile and JWT token.
@@ -65,7 +69,11 @@ async def signup(req: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=dict)
-async def login(req: UserLogin, db: Session = Depends(get_db)):
+async def login(
+    req: UserLogin,
+    db: Session = Depends(get_db),
+    _: None = Depends(RateLimiter(max_requests=10, window_seconds=60)),
+):
     """
     Authenticate an existing user.
     Returns user profile and JWT token.

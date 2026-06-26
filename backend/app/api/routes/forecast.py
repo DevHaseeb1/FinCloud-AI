@@ -10,6 +10,7 @@ import logging
 from app.core.database import get_db
 from app.models import db_models, schemas
 from app.api.dependencies import require_authenticated_user
+from app.models.db_models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forecast", tags=["forecast"])
@@ -23,7 +24,7 @@ async def get_forecast(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get cost forecasts.
@@ -40,7 +41,9 @@ async def get_forecast(
         Forecast data
     """
     try:
-        query = db.query(db_models.Forecast).order_by(
+        query = db.query(db_models.Forecast).filter(
+            db_models.Forecast.user_id == current_user.id,
+        ).order_by(
             db_models.Forecast.date.desc()
         )
         
@@ -77,7 +80,7 @@ async def get_forecast(
 @router.get("/next-30-days", response_model=schemas.APIResponse)
 async def get_forecast_next_30_days(
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get forecast for next 30 days.
@@ -92,7 +95,8 @@ async def get_forecast_next_30_days(
         # Get forecast records for next 30 days
         forecasts = db.query(db_models.Forecast).filter(
             db_models.Forecast.date >= datetime.combine(today, datetime.min.time()),
-            db_models.Forecast.date <= datetime.combine(future_date, datetime.max.time())
+            db_models.Forecast.date <= datetime.combine(future_date, datetime.max.time()),
+            db_models.Forecast.user_id == current_user.id,
         ).order_by(db_models.Forecast.date).all()
         
         if not forecasts:
@@ -146,7 +150,7 @@ async def get_forecast_by_service(
     service: str = Query(...),
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _: None = Depends(require_authenticated_user),
+    current_user: User = Depends(require_authenticated_user),
 ):
     """
     Get forecast for specific service.
@@ -164,6 +168,7 @@ async def get_forecast_by_service(
         
         forecasts = db.query(db_models.Forecast).filter(
             db_models.Forecast.service == service,
+            db_models.Forecast.user_id == current_user.id,
             db_models.Forecast.date <= future_date
         ).order_by(db_models.Forecast.date).all()
         
