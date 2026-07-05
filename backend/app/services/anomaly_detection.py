@@ -1,4 +1,4 @@
-"""
+﻿"""
 Anomaly Detection Service — FinCloud-AI
 ========================================
 Upgraded implementation using Isolation Forest with account-normalized
@@ -41,11 +41,13 @@ Required:
 
 Baseline group key (defines one normalisation unit):
   account_id + service + usage_type + region + environment + instance_type
+  + operation + product_family
   Each unique combination gets its own cost baseline, so a prod EC2 spike
   in us-east-1 never contaminates the baseline for dev EC2 in ap-southeast-1.
 
 Optional but strongly recommended (available in your dataset):
-  region, environment, instance_type  ← used in the group key
+  region, environment, instance_type, operation, product_family  ← used in group key
+  line_item_type, resource_id, pricing_term  ← used as frequency-encoded features
   normalized_usage, cpu_utilization, memory_utilization,
   network_in_mb, network_out_mb, latency_ms, throughput,
   invocations, duration_ms, error_count,
@@ -63,6 +65,7 @@ from typing import Optional
 import joblib
 import numpy as np
 import pandas as pd
+from scipy import stats
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
 
@@ -85,49 +88,45 @@ logger = logging.getLogger(__name__)
 # Cold-start note: the more granular the key, the fewer rows per bucket.
 # New account+region+env+instance combinations fall back to neutral values
 # until enough history accumulates (see predict_single cold-start handling).
-_GRP_KEY = ["account_id", "service", "usage_type", "region", "environment", "instance_type"]
+_GRP_KEY = ["account_id", "service", "usage_type", "region", "environment", "instance_type", "operation", "product_family"]
 
 # All features fed to Isolation Forest — order matters for inference.
 # If you add a feature, append it here AND add its computation in
 # _build_normalized_features(). Never change the order of existing entries
 # without regenerating all saved artifacts.
 FEATURE_COLS = [
-    # ── Account-normalized cost signals (highest importance) ──────────────────
-    "cost_zscore",           # SDs from this account+service's mean cost
-    "cost_ratio_p95",        # cost / this account+service's 95th-pct cost
-    "cost_ratio_mean",       # cost / this account+service's mean cost
-    "daily_spend_zscore",    # today's account total vs account's daily average
-    "cost_per_unit_ratio",   # cost-per-unit vs this account+service baseline
-    # ── Raw cost (log-transformed to compress the long tail) ──────────────────
+    "cost_zscore",
+    "cost_ratio_p95",
+    "cost_ratio_mean",
+    "daily_spend_zscore",
+    "cost_per_unit_ratio",
     "log_cost",
     "log_usage_amount",
-    "normalized_usage",
-    # ── Resource utilisation (high cost + low utilisation = strong signal) ────
-    "cpu_utilization",
-    "memory_utilization",
-    "network_in_mb",
-    "network_out_mb",
-    "latency_ms",
-    "throughput",
-    "invocations",
-    "duration_ms",
-    "error_count",
-    "availability_percent",
-    "status_check_failed",
-    # ── Temporal ──────────────────────────────────────────────────────────────
+    "cost_momentum_3d",
+    "service_spend_share",
+    "spike_persistence",
+    "cost_autocorr_lag1",
+    "region_cost_spread",
+    "mad_zscore",
+    "iqr_outlier",
+    "cusum",
     "hour",
     "dayofweek",
     "is_weekend",
     "month",
-    # ── Categorical (frequency-encoded — common values get high scores) ──────
-    "service_freq",       # how common this service is across all rows
-    "usage_type_freq",    # how common this usage_type is across all rows
-    "region_freq",        # rare regions are naturally more suspicious
-    "environment_freq",   # prod >> staging >> dev in typical distributions
-    "instance_type_freq", # rare instance types (e.g. p4d) may indicate misconfig
+    "service_freq",
+    "usage_type_freq",
+    "region_freq",
+    "environment_freq",
+    "instance_type_freq",
+    "operation_freq",
+    "product_family_freq",
+    "pricing_term_freq",
+    "resource_id_freq",
+    "line_item_type_freq",
 ]
 
-# Artifact filenames written/read by save_artifacts() / load_artifacts()
+# Artifact filenames# Artifact filenames written/read by save_artifacts() / load_artifacts()
 _ARTIFACT_FILES = {
     "model":        "isolation_forest_model.pkl",
     "scaler":       "feature_scaler.pkl",
@@ -171,15 +170,24 @@ class AnomalyDetectionService:
         # Lookup tables built during training — needed for inference
         self._baseline:     Optional[pd.DataFrame] = None   # per account+svc+type stats
         self._baseline_idx: Optional[dict]         = None   # fast dict lookup
-        self._svc_freq:     Optional[dict]         = None   # service       → frequency
-        self._ut_freq:      Optional[dict]         = None   # usage_type    → frequency
-        self._region_freq:  Optional[dict]         = None   # region        → frequency
-        self._env_freq:     Optional[dict]         = None   # environment   → frequency
-        self._itype_freq:   Optional[dict]         = None   # instance_type → frequency
+        self._svc_freq:     Optional[dict]         = None   # service         → frequency
+        self._ut_freq:      Optional[dict]         = None   # usage_type      → frequency
+        self._region_freq:  Optional[dict]         = None   # region          → frequency
+        self._env_freq:     Optional[dict]         = None   # environment     → frequency
+        self._itype_freq:   Optional[dict]         = None   # instance_type   → frequency
+        self._op_freq:      Optional[dict]         = None   # operation       → frequency
+        self._pf_freq:      Optional[dict]         = None   # product_family  → frequency
+        self._pt_freq:      Optional[dict]         = None   # pricing_term    → frequency
+        self._rid_freq:     Optional[dict]         = None   # resource_id     → frequency
+        self._lit_freq:     Optional[dict]         = None   # line_item_type  → frequency
 
         # Score normalization params (min/max of decision_function on train set)
         self._score_min: float = 0.0
         self._score_max: float = 1.0
+
+        # Beta calibration params — maps raw scores to calibrated p-values
+        self._beta_a: float = 1.0
+        self._beta_b: float = 1.0
 
         self.is_trained: bool = False
 
@@ -208,8 +216,12 @@ class AnomalyDetectionService:
 
         # Step 1 — Exclude credits/refunds from training.
         # Negative costs are accounting entries, not cost anomalies.
-        n_credits = (df_clean["cost"] < 0).sum()
-        df_train = df_clean[df_clean["cost"] >= 0].copy()
+        # Also use line_item_type when available for more accurate filtering.
+        credit_mask = df_clean["cost"] < 0
+        if "line_item_type" in df_clean.columns:
+            credit_mask |= df_clean["line_item_type"].str.lower().isin(["credit", "refund"])
+        n_credits = credit_mask.sum()
+        df_train = df_clean[~credit_mask].copy()
         logger.info(
             f"Excluded {n_credits:,} credit/refund rows. "
             f"Training on {len(df_train):,} rows."
@@ -249,6 +261,15 @@ class AnomalyDetectionService:
         raw_scores = self._model.decision_function(X_scaled)
         self._score_min = float(raw_scores.min())
         self._score_max = float(raw_scores.max())
+
+        # Step 7 — Fit Beta distribution to normalized scores for calibrated
+        # p-values. p < 0.01 → "High", p < 0.05 → "Medium", else "Low".
+        train_scores = 1.0 - (raw_scores - self._score_min) / (self._score_max - self._score_min + 1e-9)
+        train_scores = np.clip(train_scores, 1e-6, 1 - 1e-6)
+        try:
+            self._beta_a, self._beta_b, *_ = stats.beta.fit(train_scores, floc=0, fscale=1)
+        except Exception:
+            self._beta_a, self._beta_b = 1.0, 1.0
 
         n_anomalies = (self._model.predict(X_scaled) == -1).sum()
         logger.info(
@@ -306,9 +327,18 @@ class AnomalyDetectionService:
         anomaly_scores = np.clip(anomaly_scores, 0.0, 1.0)
         anomaly_flags  = (labels == -1).astype(int)
 
+        # Calibrate via Beta p-value: p < 0.01 → "High", p < 0.05 → "Medium"
+        safe_scores  = np.clip(anomaly_scores, 1e-6, 1 - 1e-6)
+        p_values     = stats.beta.cdf(safe_scores, self._beta_a, self._beta_b)
+        calibrated   = np.where(p_values < 0.01, "High",
+                        np.where(p_values < 0.05, "Medium", "Low"))
+        # Override flag: only call it an anomaly if calibrated is High or Medium
+        calibrated_flags = ((calibrated == "High") | (calibrated == "Medium")).astype(int)
+
         result = df_feat.copy()
-        result["anomaly_flag"]  = anomaly_flags
+        result["anomaly_flag"]  = calibrated_flags
         result["anomaly_score"] = anomaly_scores
+        result["severity"]      = calibrated
 
         # Build structured explanation for each row
         result["explanation"] = [
@@ -384,7 +414,12 @@ class AnomalyDetectionService:
 
         with open(path / _ARTIFACT_FILES["score_norm"], "w") as f:
             json.dump(
-                {"score_min": self._score_min, "score_max": self._score_max},
+                {
+                    "score_min": self._score_min,
+                    "score_max": self._score_max,
+                    "beta_a":    self._beta_a,
+                    "beta_b":    self._beta_b,
+                },
                 f,
                 indent=2,
             )
@@ -399,6 +434,11 @@ class AnomalyDetectionService:
                     "region_freq":        self._region_freq,
                     "environment_freq":   self._env_freq,
                     "instance_type_freq": self._itype_freq,
+                    "operation_freq":     self._op_freq,
+                    "product_family_freq":self._pf_freq,
+                    "pricing_term_freq":  self._pt_freq,
+                    "resource_id_freq":   self._rid_freq,
+                    "line_item_type_freq":self._lit_freq,
                 },
                 f,
                 indent=2,
@@ -435,13 +475,19 @@ class AnomalyDetectionService:
             norm = json.load(f)
         instance._score_min = norm["score_min"]
         instance._score_max = norm["score_max"]
+        instance._beta_a    = norm.get("beta_a", 1.0)
+        instance._beta_b    = norm.get("beta_b", 1.0)
 
         instance._baseline = pd.read_csv(path / _ARTIFACT_FILES["baseline"])
-        for col in ("account_id", "region", "environment", "instance_type"):
-            instance._baseline[col] = instance._baseline[col].astype(str)
+        for col in ("account_id", "region", "environment", "instance_type", "operation", "product_family"):
+            if col in instance._baseline.columns:
+                instance._baseline[col] = instance._baseline[col].astype(str)
+            else:
+                instance._baseline[col] = "unknown"
         instance._baseline_idx = {
             (r.account_id, r.service, r.usage_type,
-             r.region, r.environment, r.instance_type): r
+             r.region, r.environment, r.instance_type,
+             r.operation, r.product_family): r
             for _, r in instance._baseline.iterrows()
         }
 
@@ -452,6 +498,11 @@ class AnomalyDetectionService:
         instance._region_freq = enc["region_freq"]
         instance._env_freq    = enc["environment_freq"]
         instance._itype_freq  = enc["instance_type_freq"]
+        instance._op_freq     = enc.get("operation_freq", {})
+        instance._pf_freq     = enc.get("product_family_freq", {})
+        instance._pt_freq     = enc.get("pricing_term_freq", {})
+        instance._rid_freq    = enc.get("resource_id_freq", {})
+        instance._lit_freq    = enc.get("line_item_type_freq", {})
 
         instance.contamination = instance._model.contamination
         instance.is_trained    = True
@@ -495,6 +546,8 @@ class AnomalyDetectionService:
             row.get("region", "unknown"),
             row.get("environment", "unknown"),
             row.get("instance_type", "unknown"),
+            row.get("operation", "unknown"),
+            row.get("product_family", "unknown"),
         )
         b = self._baseline_idx.get(key) if self._baseline_idx else None
 
@@ -504,7 +557,7 @@ class AnomalyDetectionService:
         mean_cost = float(b.mean_cost)   if b is not None else 0.0
         std_cost  = float(b.std_cost)    if b is not None else 0.001
         p95_cost  = float(b.p95_cost)    if b is not None else 0.01
-        mean_cpu  = float(b.mean_cpu)    if b is not None else 0.001
+        median_cost = float(b.median_cost) if b is not None else 0.0
         daily_mean = float(b.daily_mean) if (b is not None and hasattr(b, "daily_mean")) else 0.0
         daily_std  = float(b.daily_std)  if (b is not None and hasattr(b, "daily_std"))  else 0.001
 
@@ -516,6 +569,10 @@ class AnomalyDetectionService:
         cost_per_unit       = cost / usage_amount
         cost_per_unit_ratio = float(np.clip(cost_per_unit / (mean_cpu + 1e-9), 0, 100))
 
+        mad_cost  = float(b.mad_cost)  if b is not None else 0.001
+        q1_cost   = float(b.q1_cost)   if b is not None else 0.0
+        q3_cost   = float(b.q3_cost)   if b is not None else 0.001
+
         feat = {
             "cost_zscore":         float(np.clip((cost - mean_cost) / (std_cost + 1e-9), -10, 10)),
             "cost_ratio_p95":      float(np.clip(cost / (p95_cost  + 1e-9), 0, 100)),
@@ -524,27 +581,28 @@ class AnomalyDetectionService:
             "cost_per_unit_ratio": cost_per_unit_ratio,
             "log_cost":            float(np.log1p(max(cost, 0))),
             "log_usage_amount":    float(np.log1p(max(usage_amount, 0))),
-            "normalized_usage":    float(row.get("normalized_usage", 0)),
-            "cpu_utilization":     float(row.get("cpu_utilization",    0)),
-            "memory_utilization":  float(row.get("memory_utilization", 0)),
-            "network_in_mb":       float(row.get("network_in_mb",      0)),
-            "network_out_mb":      float(row.get("network_out_mb",     0)),
-            "latency_ms":          float(row.get("latency_ms",         0)),
-            "throughput":          float(row.get("throughput",         0)),
-            "invocations":         float(row.get("invocations",        0)),
-            "duration_ms":         float(row.get("duration_ms",        0)),
-            "error_count":         float(row.get("error_count",        0)),
-            "availability_percent":float(row.get("availability_percent", 100)),
-            "status_check_failed": float(row.get("status_check_failed",   0)),
+            "cost_momentum_3d":    1.0,
+            "service_spend_share": float(np.clip(cost / (daily_acct_total + 1e-9), 0, 1)),
+            "spike_persistence":   0,
+            "cost_autocorr_lag1":  0.0,
+            "region_cost_spread":  0.0,
+            "mad_zscore":          float(np.clip(0.6745 * (cost - median_cost) / (mad_cost + 1e-9), -10, 10)),
+            "iqr_outlier":         float(np.clip((cost - q3_cost) / (q3_cost - q1_cost + 1e-9), 0, 20) if cost > q3_cost else 0.0),
+            "cusum":               0.0,
             "hour":       ts.hour      if ts is not pd.NaT else 0,
             "dayofweek":  ts.dayofweek if ts is not pd.NaT else 0,
             "is_weekend": int(ts.dayofweek >= 5) if ts is not pd.NaT else 0,
             "month":      ts.month     if ts is not pd.NaT else 1,
-            "service_freq":       self._svc_freq.get(row.get("service",       ""), 0),
-            "usage_type_freq":    self._ut_freq.get( row.get("usage_type",    ""), 0),
+            "service_freq":       self._svc_freq.get(row.get("service",        ""), 0),
+            "usage_type_freq":    self._ut_freq.get( row.get("usage_type",     ""), 0),
             "region_freq":        self._region_freq.get(row.get("region",        "unknown"), 0),
             "environment_freq":   self._env_freq.get(   row.get("environment",   "unknown"), 0),
             "instance_type_freq": self._itype_freq.get( row.get("instance_type", "unknown"), 0),
+            "operation_freq":       self._op_freq.get( row.get("operation",       "unknown"), 0),
+            "product_family_freq":  self._pf_freq.get( row.get("product_family",  "unknown"), 0),
+            "pricing_term_freq":    self._pt_freq.get( row.get("pricing_term",    "unknown"), 0),
+            "resource_id_freq":     self._rid_freq.get(row.get("resource_id",     "unknown"), 0),
+            "line_item_type_freq":  self._lit_freq.get(row.get("line_item_type",  "unknown"), 0),
         }
 
         X = np.array([[feat[c] for c in FEATURE_COLS]], dtype=np.float64)
@@ -569,7 +627,7 @@ class AnomalyDetectionService:
                 "cost_ratio_mean":     round(feat["cost_ratio_mean"], 2),
                 "daily_spend_zscore":  round(feat["daily_spend_zscore"], 2),
                 "cost_per_unit_ratio": round(feat["cost_per_unit_ratio"], 2),
-                "error_count":         feat["error_count"],
+                "mad_zscore":          round(feat["mad_zscore"], 2),
                 "human_readable":      self._human_readable_explanation(feat, is_anomaly, score),
             },
         }
@@ -596,7 +654,14 @@ class AnomalyDetectionService:
 
         # Fill optional group-key columns — present in the FinCloud dataset
         # but guard against missing columns in unit tests / synthetic data.
-        for col in ("region", "environment", "instance_type", "usage_type"):
+        for col in ("region", "environment", "instance_type", "usage_type", "operation", "product_family"):
+            if col not in df.columns:
+                df[col] = "unknown"
+            else:
+                df[col] = df[col].fillna("unknown").astype(str)
+
+        # Fill optional frequency-encoded columns (not in group key)
+        for col in ("line_item_type", "resource_id", "pricing_term"):
             if col not in df.columns:
                 df[col] = "unknown"
             else:
@@ -655,12 +720,22 @@ class AnomalyDetectionService:
             self._region_freq = df["region"].value_counts(normalize=True).to_dict()
             self._env_freq    = df["environment"].value_counts(normalize=True).to_dict()
             self._itype_freq  = df["instance_type"].value_counts(normalize=True).to_dict()
+            self._op_freq     = df["operation"].value_counts(normalize=True).to_dict()
+            self._pf_freq     = df["product_family"].value_counts(normalize=True).to_dict()
+            self._pt_freq     = df["pricing_term"].value_counts(normalize=True).to_dict()
+            self._rid_freq    = df["resource_id"].value_counts(normalize=True).to_dict()
+            self._lit_freq    = df["line_item_type"].value_counts(normalize=True).to_dict()
 
         df["service_freq"]       = df["service"].map(self._svc_freq).fillna(0)
         df["usage_type_freq"]    = df["usage_type"].map(self._ut_freq).fillna(0)
         df["region_freq"]        = df["region"].map(self._region_freq).fillna(0)
         df["environment_freq"]   = df["environment"].map(self._env_freq).fillna(0)
         df["instance_type_freq"] = df["instance_type"].map(self._itype_freq).fillna(0)
+        df["operation_freq"]       = df["operation"].map(self._op_freq).fillna(0)
+        df["product_family_freq"]  = df["product_family"].map(self._pf_freq).fillna(0)
+        df["pricing_term_freq"]    = df["pricing_term"].map(self._pt_freq).fillna(0)
+        df["resource_id_freq"]     = df["resource_id"].map(self._rid_freq).fillna(0)
+        df["line_item_type_freq"]  = df["line_item_type"].map(self._lit_freq).fillna(0)
 
         # ── 3. Account-normalized cost features ───────────────────────────────
         # All cost signals are computed relative to the baseline for
@@ -728,26 +803,80 @@ class AnomalyDetectionService:
         ).clip(0, 100)
 
         # ── 6. Log transforms ─────────────────────────────────────────────────
-        # AWS cost distributions are extremely right-skewed (log-normal).
-        # Log1p compresses the long tail so the forest is not dominated by
-        # a handful of large-cost rows.
         df["log_cost"]         = np.log1p(df["cost"].clip(lower=0))
         df["log_usage_amount"] = np.log1p(df["usage_amount"].clip(lower=0))
 
-        # ── 7. Fill optional utilisation columns with 0 if absent ────────────
-        optional_cols = [
-            "normalized_usage", "cpu_utilization", "memory_utilization",
-            "network_in_mb", "network_out_mb", "latency_ms", "throughput",
-            "invocations", "duration_ms", "error_count",
-            "availability_percent", "status_check_failed",
-        ]
-        for col in optional_cols:
-            if col not in df.columns:
-                df[col] = 0.0
+        # ── 7. Billing-pattern features (always computable from CUR data) ────
+        # cost_momentum_3d: 3-day rolling avg / 7-day rolling avg per group.
+        # Values near 1 = stable; > 1 = accelerating; < 1 = decelerating.
+        df = df.sort_values(["date"]).reset_index(drop=True)
+        grp_date = df.groupby(_GRP_KEY)["cost"]
+        df["cost_ma_3d"] = grp_date.transform(lambda x: x.rolling(3, min_periods=1).mean())
+        df["cost_ma_7d"] = grp_date.transform(lambda x: x.rolling(7, min_periods=1).mean())
+        df["cost_momentum_3d"] = (df["cost_ma_3d"] / (df["cost_ma_7d"] + 1e-9)).clip(0, 10)
 
-        # ── 8. Build / update baseline lookup table ───────────────────────────
-        # This table is what predict_single() uses at inference time to look up
-        # per-account+service stats without re-scanning the entire dataset.
+        # service_spend_share: what % of total daily spend does this service represent?
+        daily_total = df.groupby("date")["cost"].transform("sum")
+        df["service_spend_share"] = (df["cost"] / (daily_total + 1e-9)).clip(0, 1)
+
+        # spike_persistence: for each group, count consecutive days where cost
+        # exceeds 1.5× the group median, going backward from this row's date.
+        df["above_median"] = (df["cost"] > 1.5 * df["acct_svc_median"] + 1e-9).astype(int)
+        df["spike_persistence"] = (
+            grp_date.transform(
+                lambda x: x.groupby((x == 0).cumsum()).cumcount() + 1
+            ) * df["above_median"]
+        )
+
+        # cost_autocorr_lag1: per-group lag-1 autocorrelation of cost.
+        # Low magnitude → pattern break (stochastic); high → consistent.
+        def _autocorr_lag1(series):
+            s = series.values
+            if len(s) < 3 or np.std(s[:-1]) < 1e-9 or np.std(s[1:]) < 1e-9:
+                return 0.0
+            return float(np.corrcoef(s[:-1], s[1:])[0, 1])
+        df["cost_autocorr_lag1"] = df.groupby(_GRP_KEY)["cost"].transform(_autocorr_lag1)
+
+        # region_cost_spread: (max - min) / mean across regions for this date
+        region_stats = df.groupby("date")["cost"].agg(["max", "min", "mean"]).reset_index()
+        region_stats["region_cost_spread"] = (
+            (region_stats["max"] - region_stats["min"]) / (region_stats["mean"] + 1e-9)
+        ).clip(0, 20)
+        df = df.merge(region_stats[["date", "region_cost_spread"]], on="date", how="left")
+
+        # ── 8. Statistical scores (robust anomaly signals) ──────────────────────
+        # mad_zscore: modified z-score using MAD (more robust than mean/std).
+        grp_mad = df.groupby(_GRP_KEY)["cost"]
+        median_cost = grp_mad.transform("median")
+        mad = grp_mad.transform(lambda x: np.median(np.abs(x - x.median())))
+        df["mad_zscore"] = (
+            0.6745 * (df["cost"] - median_cost) / (mad + 1e-9)
+        ).clip(-10, 10)
+
+        # iqr_outlier: how far beyond Q3 (positive) or Q1 (negative) in IQR units.
+        q1 = grp_mad.transform(lambda x: x.quantile(0.25))
+        q3 = grp_mad.transform(lambda x: x.quantile(0.75))
+        iqr = q3 - q1
+        df["iqr_outlier"] = np.where(
+            iqr > 1e-9,
+            ((df["cost"] - q3) / iqr).clip(0, 20),
+            0.0
+        )
+
+        # cusum: cumulative sum of deviations from group mean (chronological).
+        df["cost_deviation"] = df["cost"] - df["acct_svc_mean"]
+        df["cusum"] = (
+            df.groupby(_GRP_KEY)["cost_deviation"]
+            .transform(lambda x: x.cumsum())
+        )
+        # Scale cusum to prevent unbounded growth
+        cusum_std = df["cusum"].std()
+        if cusum_std > 1e-9:
+            df["cusum"] = (df["cusum"] / cusum_std).clip(-10, 10)
+        else:
+            df["cusum"] = 0.0
+
+        # ── 9. Build / update baseline lookup table ───────────────────────────
         new_baseline = (
             df.groupby(_GRP_KEY)
             .agg(
@@ -755,6 +884,9 @@ class AnomalyDetectionService:
                 std_cost    = ("cost",         "std"),
                 p95_cost    = ("cost",         lambda x: x.quantile(0.95)),
                 median_cost = ("cost",         "median"),
+                q1_cost     = ("cost",         lambda x: x.quantile(0.25)),
+                q3_cost     = ("cost",         lambda x: x.quantile(0.75)),
+                mad_cost    = ("cost",         lambda x: np.median(np.abs(x - x.median()))),
                 mean_cpu    = ("cost_per_unit","mean"),
                 daily_mean  = ("daily_acct_total", "mean"),
                 daily_std   = ("daily_acct_total", "std"),
@@ -765,7 +897,8 @@ class AnomalyDetectionService:
         self._baseline = new_baseline
         self._baseline_idx = {
             (r.account_id, r.service, r.usage_type,
-             r.region, r.environment, r.instance_type): r
+             r.region, r.environment, r.instance_type,
+             r.operation, r.product_family): r
             for _, r in new_baseline.iterrows()
         }
 
@@ -795,7 +928,6 @@ class AnomalyDetectionService:
             "cost_ratio_mean":     round(float(row.get("cost_ratio_mean", 0)),     2),
             "daily_spend_zscore":  round(float(row.get("daily_spend_zscore", 0)),  2),
             "cost_per_unit_ratio": round(float(row.get("cost_per_unit_ratio", 0)), 2),
-            "error_count":         float(row.get("error_count", 0)),
         }
         is_anomaly = flag == 1
         feat_vals["human_readable"] = AnomalyDetectionService._human_readable_explanation(
@@ -805,17 +937,6 @@ class AnomalyDetectionService:
 
     @staticmethod
     def _human_readable_explanation(feat: dict, is_anomaly: bool, score: float) -> str:
-        """
-        Generate a concise, dashboard-ready explanation string.
-
-        Priority order:
-          1. Cost z-score > 3 → cost spike vs account baseline
-          2. cost_ratio_p95 > 5 → above 95th percentile by a large margin
-          3. daily_spend_zscore > 3 → account-wide daily spend spike
-          4. cost_per_unit_ratio > 5 → efficiency anomaly (cost without usage)
-          5. error_count > 0 (with anomaly) → error-related cost
-          6. Generic fallback
-        """
         if not is_anomaly:
             return "Normal cost pattern"
 
@@ -851,12 +972,14 @@ class AnomalyDetectionService:
                 f"(cost spike without usage increase)"
             )
 
-        errors = feat.get("error_count", 0)
-        if errors > 0 and is_anomaly:
-            reasons.append(f"{int(errors)} errors recorded alongside cost spike")
+        mad_z = feat.get("mad_zscore", 0)
+        if abs(mad_z) >= 3.5:
+            reasons.append(
+                f"Robust z-score is {abs(mad_z):.1f} — highly deviant from median"
+            )
 
         if not reasons:
-            severity = "Severe" if score > 0.8 else "Moderate" if score > 0.6 else "Minor"
+            severity = "Severe" if score > 0.875 else "Moderate" if score > 0.95 else "Minor"
             reasons.append(f"{severity} multi-factor anomaly (score: {score:.2f})")
 
         return "; ".join(reasons)

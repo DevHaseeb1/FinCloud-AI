@@ -13,13 +13,70 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 const COLORS = [
   "var(--cyan)",
   "var(--violet)",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "#F97316",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--ember)",
 ];
+
+function CustomTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const data = payload[0];
+  return (
+    <div className="rounded-xl border border-white/10 bg-popover px-3.5 py-2.5 shadow-xl">
+      <div className="flex items-center gap-2 text-sm">
+        <span
+          className="size-2 rounded-full"
+          style={{ backgroundColor: data.payload?.fill || data.color }}
+        />
+        <span className="text-muted-foreground">{data.name}:</span>
+        <span className="font-mono font-semibold text-foreground">{data.value}</span>
+      </div>
+    </div>
+  );
+}
+
+function CustomLegend({ payload }: any) {
+  if (!payload) return null;
+  return (
+    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 pt-2">
+      {payload.map((entry: any, index: number) => (
+        <div key={index} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span>{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) {
+  if (percent < 0.05) return null;
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={600}
+      fontFamily="var(--font-mono)"
+    >
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+}
 
 export function PieChart({
   data,
@@ -35,40 +92,31 @@ export function PieChart({
   const reduced = useReducedMotion();
 
   return (
-    <div className="h-64 w-full">
+    <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <RPieChart>
-          <Tooltip
-            formatter={(v, _n, p) => {
-              const num = typeof v === "number" ? v : Number(v);
-              return [valueFormatter?.(num) ?? num, p?.payload?.[nameKey] ?? ""];
-            }}
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-              color: "hsl(var(--foreground))",
-            }}
-            labelStyle={{ color: "hsl(var(--foreground))" }}
-          />
-          <Legend
-            verticalAlign="bottom"
-            height={24}
-            wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }}
-          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend content={<CustomLegend />} />
           <Pie
             data={data}
             dataKey={valueKey}
             nameKey={nameKey}
-            innerRadius={60}
+            innerRadius={55}
             outerRadius={90}
-            paddingAngle={3}
+            paddingAngle={2}
+            label={renderCustomLabel}
+            labelLine={false}
             isAnimationActive={!reduced}
             animationDuration={800}
             animationEasing="ease-out"
           >
             {data.map((_d, idx) => (
-              <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+              <Cell
+                key={idx}
+                fill={COLORS[idx % COLORS.length]}
+                stroke="var(--background)"
+                strokeWidth={2}
+              />
             ))}
           </Pie>
         </RPieChart>

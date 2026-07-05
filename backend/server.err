@@ -1,0 +1,8 @@
+INFO:     Started server process [13628]
+INFO:     Waiting for application startup.
+INFO:app.main:Initializing FinCloud-AI Backend...
+INFO:app.core.database:Initializing database...
+INFO:app.core.database:Database initialization complete
+INFO:app.main:Database initialized
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

@@ -36,7 +36,7 @@ function StatCard({
   return (
     <div
       className={cn(
-        "flex flex-col items-center rounded-xl border border-white/[0.06] bg-[#0D1225] p-6 transition-all duration-400 hover:border-white/[0.12] hover:shadow-[0_0_24px_rgba(0,212,255,0.04)]",
+        "flex flex-col items-center rounded-xl border border-white/[0.06] bg-card p-6 transition-all duration-400 hover:border-white/[0.12] hover:shadow-[0_0_24px] hover:shadow-primary/4",
         !visible && "opacity-0 translate-y-3",
         visible && "opacity-100 translate-y-0",
       )}
@@ -55,7 +55,7 @@ export function TechExcellenceSection() {
   const reduced = useReducedMotion();
 
   return (
-    <section className="bg-[#0A0E1A] py-20 md:py-28">
+    <section className="bg-background py-20 md:py-28">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">Technical Excellence</h2>

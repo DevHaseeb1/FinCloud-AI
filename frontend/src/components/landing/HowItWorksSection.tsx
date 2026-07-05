@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Cloud, Database, Brain, Lightbulb } from "lucide-react";
+import { motion, useInView } from "framer-motion";
+import { staggerItem, easeOutExpo } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { staggerDelay } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -33,12 +34,51 @@ const STEPS = [
   },
 ];
 
+function StepCard({
+  step,
+  index,
+  isInView,
+  reduced,
+}: {
+  step: (typeof STEPS)[number];
+  index: number;
+  isInView: boolean;
+  reduced: boolean;
+}) {
+  return (
+    <motion.div
+      initial={reduced ? false : "hidden"}
+      animate={reduced || isInView ? "visible" : "hidden"}
+      variants={{
+        hidden: { opacity: 0, y: 24 },
+        visible: {
+          opacity: 1,
+          y: 0,
+          transition: { ...easeOutExpo, delay: index * 0.12 },
+        },
+      }}
+      className="relative flex flex-col items-center text-center"
+    >
+      <div className={cn("relative z-10 flex size-12 items-center justify-center rounded-xl bg-gradient-to-br", step.gradient)}>
+        <step.icon className="size-6 text-white" />
+      </div>
+      <div className="mt-3 rounded-full border border-white/[0.06] bg-background px-2.5 py-0.5 text-xs text-white/40 font-mono">
+        Step {index + 1}
+      </div>
+      <h3 className="mt-2 text-base font-semibold text-white">{step.title}</h3>
+      <p className="mt-1.5 text-sm text-white/50 leading-relaxed">{step.description}</p>
+    </motion.div>
+  );
+}
+
 export function HowItWorksSection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="how-it-works" className="bg-[#0D1225] py-16 md:py-24">
-      <div className="mx-auto max-w-7xl px-6">
+    <section id="how-it-works" className="bg-card py-16 md:py-24">
+      <div className="mx-auto max-w-7xl px-6 md:px-20">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">How FinCloud-AI Works</h2>
           <p className="mt-3 text-white/50 max-w-xl mx-auto">
@@ -46,55 +86,21 @@ export function HowItWorksSection() {
           </p>
         </div>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-4 relative">
+        <div ref={ref} className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-4 md:gap-6 relative">
           {/* Connector line */}
-          <div className="absolute left-0 top-12 hidden h-px w-full bg-gradient-to-r from-cyan via-violet to-ember md:block" />
+          <div className="absolute left-0 right-0 top-6 hidden h-px bg-gradient-to-r from-cyan via-violet to-ember md:block" />
 
           {STEPS.map((step, i) => (
-            <StepCard key={step.title} step={step} index={i} reduced={reduced} isLast={i === STEPS.length - 1} />
+            <StepCard
+              key={step.title}
+              step={step}
+              index={i}
+              isInView={isInView}
+              reduced={reduced}
+            />
           ))}
         </div>
       </div>
     </section>
-  );
-}
-
-function StepCard({
-  step,
-  index,
-  reduced,
-  isLast,
-}: {
-  step: (typeof STEPS)[number];
-  index: number;
-  reduced: boolean;
-  isLast: boolean;
-}) {
-  const [visible, setVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (reduced) { setVisible(true); return; }
-    const t = setTimeout(() => setVisible(true), staggerDelay(index, 150));
-    return () => clearTimeout(t);
-  }, [index, reduced]);
-
-  return (
-    <div
-      className={cn(
-        "relative flex flex-col items-center text-center transition-all duration-500",
-        !visible && "opacity-0 translate-y-6",
-        visible && "opacity-100 translate-y-0",
-      )}
-      style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
-    >
-      <div className={cn("relative z-10 flex size-12 items-center justify-center rounded-xl bg-gradient-to-br", step.gradient)}>
-        <step.icon className="size-6 text-white" />
-      </div>
-      <div className="mt-3 rounded-full border border-white/[0.06] bg-[#0A0E1A] px-2.5 py-0.5 text-xs text-white/40 font-mono">
-        Step {index + 1}
-      </div>
-      <h3 className="mt-2 text-base font-semibold text-white">{step.title}</h3>
-      <p className="mt-1.5 text-sm text-white/50 leading-relaxed">{step.description}</p>
-    </div>
   );
 }

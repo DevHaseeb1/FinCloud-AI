@@ -2,7 +2,7 @@
 Data upload and preprocessing API endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 import pandas as pd
 import io
@@ -76,9 +76,22 @@ def _extract_interval_start(series: pd.Series) -> pd.Series:
     return series.astype(str).str.split("/").str[0].str.strip()
 
 
+
+def _normalize_cur_column(name: str) -> str:
+    name = name.replace('/', '_').replace('-', '_').replace(' ', '_')
+    result = []
+    for i, c in enumerate(name):
+        if c.isupper() and i > 0 and (name[i-1].islower() or name[i-1].isdigit()):
+            result.append('_')
+        result.append(c)
+    name = ''.join(result).lower()
+    while '__' in name:
+        name = name.replace('__', '_')
+    return name.strip('_')
+
 def map_aws_billing_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df.columns = df.columns.str.strip().str.lower()
+    df.columns = [_normalize_cur_column(c) for c in df.columns]
 
     # Map prioritized AWS columns to internal column names
     for internal_col, candidates in AWS_COLUMN_PRIORITIES.items():
@@ -99,11 +112,76 @@ def map_aws_billing_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+
+def _run_ml_pipeline_background(user_id, processed_json, raw_json):
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        processed_df = pd.read_json(processed_json)
+        df = pd.read_json(raw_json)
+        cutoff = processed_df["date"].min() if not processed_df.empty else datetime(2020, 1, 1)
+        logger.info("ML pipeline starting in background...")
+        db.query(db_models.Anomaly).filter(db_models.Anomaly.user_id == user_id, db_models.Anomaly.date >= cutoff).delete()
+        db.query(db_models.Forecast).filter(db_models.Forecast.user_id == user_id).delete()
+        db.query(db_models.Recommendation).filter(db_models.Recommendation.user_id == user_id).delete()
+        db.commit()
+        logger.info("Cleared old predictions")
+        try:
+            logger.info("Running anomaly detection...")
+            svc = AnomalyDetectionService(contamination=0.1)
+            adf = df[["timestamp", "service", "region"]].copy()
+            adf["cost"] = df["total_cost"]
+            adf["usage_amount"] = df["usage_quantity"] if "usage_quantity" in df.columns else 0.0
+            adf["account_id"] = df["account_id"].fillna("unknown").astype(str) if "account_id" in df.columns else "unknown"
+            adf["usage_type"] = df["usage_type"].fillna("unknown").astype(str) if "usage_type" in df.columns else "unknown"
+            if len(adf) >= 10:
+                svc.train(adf)
+                ar = svc.detect_anomalies(adf)
+                recs = [db_models.Anomaly(user_id=user_id, date=r["date"], service=r["service"], region=r["region"], anomaly_score=float(r.get("anomaly_score",0)), anomaly_flag=bool(r.get("anomaly_flag",False)), cost_value=float(r["cost"])) for _,r in ar.iterrows()]
+                if recs:
+                    db.bulk_save_objects(recs)
+                    db.commit()
+                    logger.info("Saved " + str(len(recs)) + " anomaly records")
+        except Exception as e:
+            logger.error("Anomaly failed: " + str(e))
+        try:
+            logger.info("Running forecasting...")
+            fc = ForecastingService(forecast_periods=30)
+            if len(processed_df) >= 10:
+                fc.train(processed_df, service="all")
+                fr = fc.forecast_total_cost()
+                recs = [db_models.Forecast(user_id=user_id, date=r["date"], service="all", region="all", predicted_cost=float(r.get("predicted_cost",0)), lower_bound=float(r.get("lower_bound",0)), upper_bound=float(r.get("upper_bound",0))) for _,r in fr.iterrows()]
+                if recs:
+                    db.bulk_save_objects(recs)
+                    db.commit()
+                    logger.info("Saved " + str(len(recs)) + " forecast records")
+        except Exception as e:
+            logger.error("Forecast failed: " + str(e))
+        try:
+            logger.info("Generating recommendations...")
+            if len(processed_df) >= 5:
+                os = OptimizationService()
+                recs_in = os.get_recommendations(processed_df)
+                recs = [db_models.Recommendation(user_id=user_id, service=r.get("service","all"), region=r.get("region","all"), recommendation_type=r.get("recommendation_type","optimization"), suggestion=r.get("suggestion","Optimize costs"), estimated_savings=float(r.get("estimated_savings",0)), confidence_score=float(r.get("confidence_score",0.5)), priority=int(r.get("priority",1))) for r in recs_in]
+                if recs:
+                    db.bulk_save_objects(recs)
+                    db.commit()
+                    logger.info("Saved " + str(len(recs)) + " recommendation records")
+        except Exception as e:
+            logger.error("Recommendation failed: " + str(e))
+        logger.info("ML pipeline completed")
+    except Exception as e:
+        logger.error("Background ML failed: " + str(e))
+    finally:
+        db.close()
+
+
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 
 @router.post("/data", response_model=schemas.APIResponse)
 async def upload_cost_data(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     settings = Depends(get_settings),
@@ -359,139 +437,17 @@ async def upload_cost_data(
             logger.error(f"❌ Bulk insert failed: {insert_error}")
             raise HTTPException(status_code=500, detail=f"Database insertion failed: {str(insert_error)}")
 
-        # ✅ 13. RUN ML MODELS ON PROCESSED DATA
-        try:
-            logger.info("🤖 Starting ML model training and inference...")
-            
-            # Clear old predictions for this user and date range
-            cutoff_date = processed_df['date'].min()
-            db.query(db_models.Anomaly).filter(
-                db_models.Anomaly.user_id == current_user.id,
-                db_models.Anomaly.date >= cutoff_date
-            ).delete()
-            db.query(db_models.Forecast).filter(
-                db_models.Forecast.user_id == current_user.id,
-                db_models.Forecast.date >= cutoff_date
-            ).delete()
-            db.query(db_models.Recommendation).filter(
-                db_models.Recommendation.user_id == current_user.id,
-                db_models.Recommendation.created_at >= datetime.utcnow() - timedelta(hours=1)
-            ).delete()
-            db.commit()
-            logger.info("✅ Cleared old predictions")
-            
-            # ✅ 13a. ANOMALY DETECTION
-            try:
-                logger.info("🔍 Running anomaly detection...")
-                anomaly_service = AnomalyDetectionService(contamination=0.1)
+        # 13. RUN ML MODELS IN BACKGROUND
+        ml_status = {"anomaly": "processing", "forecast": "processing", "recommendation": "processing"}
+        background_tasks.add_task(
+            _run_ml_pipeline_background,
+            user_id=current_user.id,
+            processed_json=processed_df.to_json(),
+            raw_json=df.to_json(),
+        )
+        logger.info("ML pipeline dispatched to background task")
 
-                # Build anomaly input from raw data (before aggregation),
-                # mapping column names to what the service expects
-                anomaly_input_cols = {"timestamp", "cost", "usage_amount", "account_id", "service", "usage_type", "region"}
-                anomaly_df = df[["timestamp", "service", "region"]].copy()
-                anomaly_df["cost"] = df["total_cost"]
-                anomaly_df["usage_amount"] = df["usage_quantity"] if "usage_quantity" in df.columns else 0.0
-                anomaly_df["account_id"] = df["account_id"].fillna("unknown").astype(str) if "account_id" in df.columns else "unknown"
-                anomaly_df["usage_type"] = df["usage_type"].fillna("unknown").astype(str) if "usage_type" in df.columns else "unknown"
-                if "environment" in df.columns:
-                    anomaly_df["environment"] = df["environment"].fillna("unknown").astype(str)
-                if "instance_type" in df.columns:
-                    anomaly_df["instance_type"] = df["instance_type"].fillna("unknown").astype(str)
 
-                if len(anomaly_df) >= 10:
-                    anomaly_service.train(anomaly_df)
-                    anomaly_results = anomaly_service.detect_anomalies(anomaly_df)
-
-                    anomaly_records = []
-                    for idx, row in anomaly_results.iterrows():
-                        anomaly_records.append(db_models.Anomaly(
-                            user_id=current_user.id,
-                            date=row['date'],
-                            service=row['service'],
-                            region=row['region'],
-                            anomaly_score=float(row.get('anomaly_score', 0)),
-                            anomaly_flag=bool(row.get('anomaly_flag', False)),
-                            cost_value=float(row['cost']),
-                            explanation=f"Anomaly detected for {row['service']} in {row['region']}"
-                        ))
-
-                    if anomaly_records:
-                        db.bulk_save_objects(anomaly_records)
-                        db.commit()
-                        logger.info(f"✅ Saved {len(anomaly_records)} anomaly records")
-                else:
-                    logger.warning(f"⚠️  Insufficient data for anomaly detection ({len(anomaly_df)} < 10)")
-            except Exception as e:
-                logger.warning(f"⚠️  Anomaly detection failed: {e}")
-            
-            # ✅ 13b. FORECASTING
-            try:
-                logger.info("📈 Running forecasting...")
-                forecast_service = ForecastingService(forecast_periods=30)
-                
-                if len(processed_df) >= 10:  # Prophet needs at least 10 samples
-                    forecast_service.train(processed_df, service='all')
-                    forecast_result = forecast_service.forecast_total_cost()
-                    
-                    # Save forecasts to database
-                    forecast_records = []
-                    for idx, row in forecast_result.iterrows():
-                        forecast_records.append(db_models.Forecast(
-                            user_id=current_user.id,
-                            date=row['date'],
-                            service='all',
-                            region='all',
-                            predicted_cost=float(row.get('predicted_cost', 0)),
-                            lower_bound=float(row.get('lower_bound', 0)),
-                            upper_bound=float(row.get('upper_bound', 0))
-                        ))
-                    
-                    if forecast_records:
-                        db.bulk_save_objects(forecast_records)
-                        db.commit()
-                        logger.info(f"✅ Saved {len(forecast_records)} forecast records")
-                else:
-                    logger.warning(f"⚠️  Insufficient data for forecasting ({len(processed_df)} < 10)")
-            except Exception as e:
-                logger.warning(f"⚠️  Forecasting failed: {e}")
-            
-            # ✅ 13c. RECOMMENDATIONS
-            try:
-                logger.info("💡 Generating recommendations...")
-                
-                if len(processed_df) >= 5:
-                    opt_service = OptimizationService()
-                    recommendations = opt_service.get_recommendations(processed_df)
-                    
-                    # Save recommendations to database
-                    rec_records = []
-                    for rec in recommendations:
-                        rec_records.append(db_models.Recommendation(
-                            user_id=current_user.id,
-                            service=rec.get('service', 'all'),
-                            region=rec.get('region', 'all'),
-                            recommendation_type=rec.get('recommendation_type', 'optimization'),
-                            suggestion=rec.get('suggestion', 'Optimize costs'),
-                            estimated_savings=float(rec.get('estimated_savings', 0)),
-                            confidence_score=float(rec.get('confidence_score', 0.5)),
-                            priority=int(rec.get('priority', 1))
-                        ))
-                    
-                    if rec_records:
-                        db.bulk_save_objects(rec_records)
-                        db.commit()
-                        logger.info(f"✅ Saved {len(rec_records)} recommendation records")
-                else:
-                    logger.warning(f"⚠️  Insufficient data for recommendations ({len(processed_df)} < 5)")
-                    
-            except Exception as e:
-                logger.warning(f"⚠️  Recommendation generation failed: {e}")
-                
-        except Exception as e:
-            logger.warning(f"⚠️  ML operations failed: {e}")
-            # Don't fail the upload if ML models fail
-        
-        # ✅ 14. DEBUG LOGS - Summary
         logger.info(f"📋 CSV Ingestion Summary:")
         logger.info(f"   Rows loaded: {rows_before_cleaning}")
         logger.info(f"   Rows after cleaning: {rows_after_cleaning}")

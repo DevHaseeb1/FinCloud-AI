@@ -10,6 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { ChartTooltip } from "@/components/charts/ChartTooltip";
 
 export function BarChart({
   data,
@@ -25,41 +26,39 @@ export function BarChart({
   const reduced = useReducedMotion();
 
   return (
-    <div className="h-64 w-full">
+    <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <RBarChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
-            opacity={0.2}
-            stroke="hsl(var(--border))"
+            opacity={0.15}
+            stroke="var(--border)"
           />
           <XAxis
             dataKey={xKey}
             tickMargin={8}
             minTickGap={24}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
           <YAxis
             tickFormatter={yFormatter}
             width={70}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
           <Tooltip
-            formatter={(v) => (typeof v === "number" ? yFormatter?.(v) ?? v : v)}
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-              color: "hsl(var(--foreground))",
-            }}
-            labelStyle={{ color: "hsl(var(--foreground))" }}
+            content={<ChartTooltip valueFormatter={yFormatter} />}
+            cursor={{ fill: "var(--muted)", opacity: 0.3 }}
           />
           <Bar
             dataKey={yKey}
             fill="var(--cyan)"
-            radius={[6, 6, 0, 0]}
+            radius={[4, 4, 0, 0]}
             isAnimationActive={!reduced}
             animationDuration={600}
             animationEasing="ease-out"

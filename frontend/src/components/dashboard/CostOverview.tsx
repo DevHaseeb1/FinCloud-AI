@@ -8,7 +8,7 @@ import { useCostTimeseries } from "@/hooks/useCost";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { formatCurrency } from "@/lib/format";
 import type { CostTimeseriesPoint } from "@/types/apiTypes";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 export function CostOverview() {
   const q = useCostTimeseries();
@@ -34,20 +34,23 @@ export function CostOverview() {
   }, [q.isSuccess, q.data, reduced]);
 
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
-      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-cyan/5 blur-3xl pointer-events-none" />
+    <Card className="relative overflow-hidden border-border/50 bg-card shadow-sm">
       <CardHeader className="relative">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <span>Daily Cost Trend</span>
-              {trendUp && <TrendingUp className="size-4 text-ember/70" />}
+              {trendUp !== undefined && (
+                trendUp
+                  ? <TrendingUp className="size-4 text-red-500/70" />
+                  : <TrendingDown className="size-4 text-emerald-500/70" />
+              )}
             </CardTitle>
-            <CardDescription>Last 30 days of cloud spending</CardDescription>
+            <CardDescription>Daily cloud spending over time</CardDescription>
           </div>
           {data.length > 0 && (
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Average</div>
+              <div className="text-xs text-muted-foreground">Average</div>
               <div className="text-lg font-semibold font-mono">{formatCurrency(avgCost, { currency })}</div>
             </div>
           )}
@@ -55,7 +58,7 @@ export function CostOverview() {
       </CardHeader>
       <CardContent className="relative">
         {q.isLoading ? (
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-72 w-full rounded-lg" />
         ) : q.isError ? (
           <div className="text-sm text-destructive">Failed to load cost timeseries.</div>
         ) : (data?.length ?? 0) === 0 ? (
@@ -74,7 +77,7 @@ export function CostOverview() {
               yKey="cost"
               yFormatter={(v) => formatCurrency(v, { currency })}
             />
-            <div className="mt-6 grid grid-cols-3 gap-4 pt-6 border-t border-border/50">
+            <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
               <div>
                 <div className="text-xs font-medium text-muted-foreground">Max Cost</div>
                 <div className="text-lg font-semibold font-mono">{formatCurrency(maxCost, { currency })}</div>

@@ -11,8 +11,9 @@ import {
   Tooltip,
 } from "recharts";
 import { Lightbulb, TrendingUp } from "lucide-react";
+import { motion, useInView } from "framer-motion";
+import { fadeUpDelayed } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { cn } from "@/lib/utils";
 
 const DATA = [
   { day: "Day 1", cost: 3000 },
@@ -28,10 +29,12 @@ const formatter = (v: number) => `$${(v / 1000).toFixed(1)}K`;
 
 export function DemoSection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="demo" className="bg-[#0A0E1A] py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
+    <section id="demo" className="bg-background py-16 md:py-24">
+      <div className="mx-auto max-w-7xl px-6 md:px-20">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">
             Cloud Cost Forecast
@@ -41,16 +44,13 @@ export function DemoSection() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-3">
+        <div ref={ref} className="mt-12 grid gap-10 lg:grid-cols-3">
           {/* Chart */}
-          <div
-            className={cn(
-              "lg:col-span-2 rounded-xl border border-white/[0.08] bg-[#0D1225] p-5 md:p-6",
-              reduced ? "" : "opacity-0",
-            )}
-            style={{
-              animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 100ms forwards",
-            }}
+          <motion.div
+            className="lg:col-span-2 rounded-xl border border-white/[0.08] bg-card p-5 md:p-6"
+            initial={reduced ? false : "hidden"}
+            animate={reduced || isInView ? "visible" : "hidden"}
+            variants={fadeUpDelayed(0.1)}
           >
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="size-4 text-cyan" />
@@ -83,9 +83,9 @@ export function DemoSection() {
                     style={{ fontSize: "12px" }}
                   />
                   <Tooltip
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, "Projected Cost"]}
+                    formatter={(v: string | number) => [`$${Number(v).toLocaleString()}`, "Projected Cost"]}
                     contentStyle={{
-                      backgroundColor: "#1C2333",
+                      backgroundColor: "var(--surface-raised)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: "6px",
                       color: "#fff",
@@ -106,17 +106,14 @@ export function DemoSection() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </motion.div>
 
           {/* AI Insight panel */}
-          <div
-            className={cn(
-              "rounded-xl border border-violet/20 bg-violet/[0.04] p-6 flex flex-col justify-center",
-              reduced ? "" : "opacity-0",
-            )}
-            style={{
-              animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 200ms forwards",
-            }}
+          <motion.div
+            className="rounded-xl border border-violet/20 bg-violet/[0.04] p-6 flex flex-col justify-center"
+            initial={reduced ? false : "hidden"}
+            animate={reduced || isInView ? "visible" : "hidden"}
+            variants={fadeUpDelayed(0.2)}
           >
             <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-violet/20">
               <Lightbulb className="size-5 text-violet" />
@@ -136,7 +133,7 @@ export function DemoSection() {
                 <span className="text-xs text-white/50 font-mono">74%</span>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

@@ -157,6 +157,11 @@ def run_batch(
                         "usage_type": "unknown",
                         "environment": "unknown",
                         "instance_type": r.instance_type or "unknown",
+                        "line_item_type": r.line_item_type or "unknown",
+                        "resource_id": r.resource_id or "unknown",
+                        "operation": r.operation or "unknown",
+                        "product_family": r.product_family or "unknown",
+                        "pricing_term": r.pricing_term or "unknown",
                     }
                     for r in rows
                 ]

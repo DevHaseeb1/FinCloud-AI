@@ -23,9 +23,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Use the application's database URL from settings/.env
+# Use alembic config URL if explicitly set, otherwise fall back to settings/.env
 settings = get_settings()
-database_url = settings.database_url
+database_url = config.get_main_option("sqlalchemy.url") or settings.database_url
 
 
 def run_migrations_offline() -> None:

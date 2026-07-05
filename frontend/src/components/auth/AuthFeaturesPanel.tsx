@@ -10,8 +10,9 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { motion, useInView } from "framer-motion";
+import { staggerContainer, staggerItem, fadeUpDelayed } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { cn } from "@/lib/utils";
 
 const BAR_DATA = [
   { month: "Jan", cost: 12400 },
@@ -29,46 +30,17 @@ const FEATURES = [
   { icon: Sparkles, title: "Smart Savings", desc: "Get actionable optimization recommendations" },
 ] as const;
 
-function AmbientOrbs({ reduced }: { reduced: boolean }) {
+function AmbientOrbs() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
       <div
-        className={`absolute -left-32 -top-32 size-96 rounded-full bg-cyan/10 blur-3xl ${
-          reduced ? "" : "animate-particle-drift"
-        }`}
+        className="absolute -left-32 -top-32 size-96 rounded-full bg-cyan/10 blur-3xl animate-particle-drift"
         style={{ animationDelay: "0s" }}
       />
       <div
-        className={`absolute -bottom-32 -right-32 size-96 rounded-full bg-violet/10 blur-3xl ${
-          reduced ? "" : "animate-particle-drift"
-        }`}
+        className="absolute -bottom-32 -right-32 size-96 rounded-full bg-violet/10 blur-3xl animate-particle-drift"
         style={{ animationDelay: "2s" }}
       />
-    </div>
-  );
-}
-
-function AnimatedSection({
-  children,
-  delay,
-  reduced,
-  className,
-}: {
-  children: React.ReactNode;
-  delay: number;
-  reduced: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn("w-full", reduced ? "" : "opacity-0", className)}
-      style={{
-        animation: reduced
-          ? "none"
-          : `fade-up 400ms var(--ease-out-expo) ${delay}ms forwards`,
-      }}
-    >
-      {children}
     </div>
   );
 }
@@ -98,9 +70,9 @@ function CostBarChart({ reduced }: { reduced: boolean }) {
             style={{ fontSize: "10px" }}
           />
           <Tooltip
-            formatter={(v: number) => [`$${v.toLocaleString()}`, "Cost"]}
+            formatter={(v: string | number) => [`$${Number(v).toLocaleString()}`, "Cost"]}
             contentStyle={{
-              backgroundColor: "#1C2333",
+              backgroundColor: "var(--surface-raised)",
               border: "1px solid rgba(255,255,255,0.1)",
               borderRadius: "6px",
               color: "#fff",
@@ -125,13 +97,20 @@ function CostBarChart({ reduced }: { reduced: boolean }) {
 
 export function AuthFeaturesPanel({ variant }: { variant: "signup" | "login" }) {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <div className="relative hidden w-1/2 flex-col items-center justify-center bg-[#0A0E1A] p-12 lg:flex overflow-y-auto">
-      <AmbientOrbs reduced={reduced} />
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
+    <div className="relative hidden w-1/2 flex-col items-center justify-center bg-background p-12 lg:flex overflow-y-auto">
+      <AmbientOrbs />
+      <div ref={ref} className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6">
         {/* Brand */}
-        <AnimatedSection delay={0} reduced={reduced} className="flex flex-col items-center">
+        <motion.div
+          className="flex flex-col items-center"
+          initial={reduced ? false : "hidden"}
+          animate={reduced || isInView ? "visible" : "hidden"}
+          variants={fadeUpDelayed(0)}
+        >
           <div className="mb-4 size-12 rounded-xl bg-gradient-to-br from-cyan to-violet flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M5 14.5a4 4 0 0 1 2.5-7 5.5 5.5 0 0 1 10.2-1.7A4.5 4.5 0 0 1 18 14.5H6a1 1 0 0 1-1-1z" fill="white" opacity="0.9" />
@@ -144,52 +123,63 @@ export function AuthFeaturesPanel({ variant }: { variant: "signup" | "login" }) 
               ? "Start monitoring your cloud spend"
               : "Cloud cost intelligence"}
           </p>
-        </AnimatedSection>
+        </motion.div>
 
         {/* Features or Badges */}
         {variant === "signup" ? (
-          <AnimatedSection delay={100} reduced={reduced}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2.5"
-                >
-                  <f.icon className="mb-1.5 size-4 text-cyan" />
-                  <p className="text-xs font-medium text-white/90">{f.title}</p>
-                  <p className="mt-0.5 text-[11px] text-white/50 leading-tight">
-                    {f.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </AnimatedSection>
+          <motion.div
+            className="grid grid-cols-2 gap-2.5"
+            initial={reduced ? false : "hidden"}
+            animate={reduced || isInView ? "visible" : "hidden"}
+            variants={staggerContainer}
+          >
+            {FEATURES.map((f) => (
+              <motion.div
+                key={f.title}
+                variants={staggerItem}
+                className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2.5"
+              >
+                <f.icon className="mb-1.5 size-4 text-cyan" />
+                <p className="text-xs font-medium text-white/90">{f.title}</p>
+                <p className="mt-0.5 text-[11px] text-white/50 leading-tight">
+                  {f.desc}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
         ) : (
-          <AnimatedSection delay={100} reduced={reduced}>
-            <div className="flex flex-wrap justify-center gap-2">
-              {FEATURES.map((f) => (
-                <span
-                  key={f.title}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-xs text-white/70"
-                >
-                  <f.icon className="size-3 text-cyan" />
-                  {f.title.replace("Real-Time ", "").replace("AI ", "").replace("Cost ", "").replace("Smart ", "")}
-                </span>
-              ))}
-            </div>
-          </AnimatedSection>
+          <motion.div
+            className="flex flex-wrap justify-center gap-2"
+            initial={reduced ? false : "hidden"}
+            animate={reduced || isInView ? "visible" : "hidden"}
+            variants={staggerContainer}
+          >
+            {FEATURES.map((f) => (
+              <motion.span
+                key={f.title}
+                variants={staggerItem}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-xs text-white/70"
+              >
+                <f.icon className="size-3 text-cyan" />
+                {f.title.replace("Real-Time ", "").replace("AI ", "").replace("Cost ", "").replace("Smart ", "")}
+              </motion.span>
+            ))}
+          </motion.div>
         )}
 
         {/* Chart */}
         {variant === "login" && (
-          <AnimatedSection delay={300} reduced={reduced}>
-            <div className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] p-3.5">
-              <p className="mb-2.5 text-[11px] font-medium text-white/40 uppercase tracking-wider">
-                Cost trend
-              </p>
-              <CostBarChart reduced={reduced} />
-            </div>
-          </AnimatedSection>
+          <motion.div
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] p-3.5"
+            initial={reduced ? false : "hidden"}
+            animate={reduced || isInView ? "visible" : "hidden"}
+            variants={fadeUpDelayed(0.3)}
+          >
+            <p className="mb-2.5 text-[11px] font-medium text-white/40 uppercase tracking-wider">
+              Cost trend
+            </p>
+            <CostBarChart reduced={reduced} />
+          </motion.div>
         )}
       </div>
     </div>

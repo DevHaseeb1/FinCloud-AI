@@ -191,7 +191,7 @@ export function ConnectionWizard({ open, onClose, onComplete }: ConnectionWizard
                     className={cn(
                       "size-2 rounded-full transition-all duration-150",
                       isDone && "bg-cyan",
-                      isCurrent && "bg-cyan shadow-[0_0_0_4px_rgba(0,212,255,0.3)]",
+                      isCurrent && "bg-cyan shadow-[0_0_0_4px] shadow-primary/30",
                       !isDone && !isCurrent && "bg-white/20",
                     )}
                     style={{

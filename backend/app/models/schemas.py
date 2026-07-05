@@ -2,7 +2,7 @@
 Pydantic schemas for request/response validation.
 """
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
 import re
@@ -60,7 +60,8 @@ class UserOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 class Token(BaseModel):
@@ -97,7 +98,8 @@ class RawCostDataResponse(RawCostDataBase):
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 # Processed Cost Data Schemas
@@ -121,7 +123,8 @@ class ProcessedCostDataResponse(ProcessedCostDataBase):
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 # Anomaly Schemas
@@ -141,7 +144,8 @@ class AnomalyResponse(AnomalyBase):
     id: int
     created_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 # Forecast Schemas
@@ -160,7 +164,8 @@ class ForecastResponse(ForecastBase):
     id: int
     created_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 # Recommendation Schemas
@@ -180,7 +185,8 @@ class RecommendationResponse(RecommendationBase):
     id: int
     created_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 # API Response Schemas
@@ -235,6 +241,21 @@ class UploadResponse(BaseModel):
     status: str
 
 
+class UploadedFileResponse(BaseModel):
+    """Schema for uploaded file metadata response."""
+    id: int
+    filename: str
+    file_size: int
+    row_count: int
+    processed_count: int
+    date_min: Optional[datetime] = None
+    date_max: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PaginationParams(BaseModel):
     """Pagination parameters."""
     skip: int = Field(0, ge=0)
@@ -284,18 +305,8 @@ class AwsConnectionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("role_arn", mode="before")
-    @classmethod
-    def decrypt_role_arn(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        from app.core.aws_auth import decrypt_credential
-        try:
-            return decrypt_credential(v)
-        except Exception:
-            return v
-
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 class AwsConnectionSetupResponse(BaseModel):

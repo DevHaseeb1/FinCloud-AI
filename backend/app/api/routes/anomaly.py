@@ -34,13 +34,21 @@ def _parse_explanation(raw: Optional[str]) -> Optional[dict]:
 
 def _anomaly_to_dict(a: db_models.Anomaly) -> dict:
     """Serialize an Anomaly DB row, including optional explanation fields."""
+    score = a.anomaly_score or 0
+    if score >= 0.8:
+        severity = "high"
+    elif score >= 0.6:
+        severity = "medium"
+    else:
+        severity = "low"
     d = {
         "id": a.id,
         "date": a.date.isoformat() if a.date else None,
         "service": a.service,
         "region": a.region,
         "cost_value": round(a.cost_value, 2) if a.cost_value else 0,
-        "anomaly_score": round(a.anomaly_score, 4),
+        "anomaly_score": round(score, 4),
+        "severity": severity,
         "cost_zscore": a.cost_zscore,
         "cost_ratio_p95": a.cost_ratio_p95,
         "daily_spend_zscore": a.daily_spend_zscore,
@@ -54,12 +62,13 @@ def _anomaly_to_dict(a: db_models.Anomaly) -> dict:
 @router.get("", response_model=schemas.APIResponse)
 async def get_anomalies(
     days: int = Query(30, ge=1, le=365),
-    min_score: float = Query(0.5, ge=0, le=1),
+    min_score: float = Query(0.0, ge=0, le=1),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     cost_zscore_gt: Optional[float] = Query(None, ge=0),
     cost_ratio_p95_gt: Optional[float] = Query(None, ge=0),
     cost_per_unit_ratio_gt: Optional[float] = Query(None, ge=0),
+    daily_spend_zscore_gt: Optional[float] = Query(None, ge=0),
     has_errors: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
@@ -101,6 +110,10 @@ async def get_anomalies(
         if cost_per_unit_ratio_gt is not None:
             query = query.filter(
                 db_models.Anomaly.cost_per_unit_ratio > cost_per_unit_ratio_gt
+            )
+        if daily_spend_zscore_gt is not None:
+            query = query.filter(
+                db_models.Anomaly.daily_spend_zscore > daily_spend_zscore_gt
             )
         if has_errors is True:
             query = query.filter(

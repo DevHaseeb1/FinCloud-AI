@@ -28,8 +28,7 @@ export function ForecastPanel() {
   }, [q.isSuccess, q.data, reduced]);
 
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
-      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-cyan/5 blur-3xl pointer-events-none" />
+    <Card className="relative overflow-hidden border-border/50 bg-card shadow-sm h-full">
       <CardHeader className="relative">
         <div className="flex items-center justify-between">
           <div>
@@ -41,7 +40,7 @@ export function ForecastPanel() {
           </div>
           {q.data && q.data.length > 0 && (
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Projected Total</div>
+              <div className="text-xs text-muted-foreground">Projected Total</div>
               <div className="text-lg font-semibold font-mono">{formatCurrency(totalPredicted, { currency })}</div>
             </div>
           )}
@@ -74,11 +73,11 @@ export function ForecastPanel() {
             <div className="mt-4 pt-4 border-t border-border/50">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Average Daily Cost</div>
+                  <div className="text-xs font-medium text-muted-foreground">Avg Daily Cost</div>
                   <div className="text-lg font-semibold font-mono">{formatCurrency(avgPredicted, { currency })}</div>
                 </div>
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Forecast Records</div>
+                  <div className="text-xs font-medium text-muted-foreground">Forecast Period</div>
                   <div className="text-lg font-semibold font-mono">{q.data?.length ?? 0} days</div>
                 </div>
               </div>

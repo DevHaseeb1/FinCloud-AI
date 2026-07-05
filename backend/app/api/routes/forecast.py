@@ -62,7 +62,9 @@ async def get_forecast(
                 "predicted_cost": round(f.predicted_cost, 2),
                 "lower_bound": round(f.lower_bound, 2),
                 "upper_bound": round(f.upper_bound, 2),
-                "confidence_interval": f"[{round(f.lower_bound, 2)}, {round(f.upper_bound, 2)}]"
+                "confidence_interval": f"[{round(f.lower_bound, 2)}, {round(f.upper_bound, 2)}]",
+                "trend": round(getattr(f, 'trend', None), 2) if hasattr(f, 'trend') and f.trend is not None else None,
+                "weekly": round(getattr(f, 'weekly', None), 2) if hasattr(f, 'weekly') and f.weekly is not None else None,
             }
             for f in forecasts
         ]
@@ -100,9 +102,16 @@ async def get_forecast_next_30_days(
         ).order_by(db_models.Forecast.date).all()
         
         if not forecasts:
+            # Fall back to the latest available forecast records
+            forecasts = db.query(db_models.Forecast).filter(
+                db_models.Forecast.user_id == current_user.id,
+            ).order_by(db_models.Forecast.date.desc()).limit(30).all()
+            forecasts = list(reversed(forecasts))
+        
+        if not forecasts:
             return schemas.APIResponse(
                 status="success",
-                data={"message": "No forecast data available"},
+                data={"forecasts": [], "message": "No forecast data available"},
                 message="Empty forecast"
             )
         

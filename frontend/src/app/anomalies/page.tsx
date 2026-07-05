@@ -42,7 +42,7 @@ function AnomaliesPageContent() {
         <div className="absolute -right-32 -top-32 size-64 rounded-full bg-red-500/5 blur-3xl" />
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Detected Anomalies</CardTitle>
-          <Badge variant="outline">{q.data?.length ?? 0}</Badge>
+          <Badge variant="outline">{q.data?.returned_count ?? q.data?.anomalies?.length ?? 0}</Badge>
         </CardHeader>
         <CardContent>
           {q.isLoading ? (
@@ -53,7 +53,7 @@ function AnomaliesPageContent() {
             </div>
           ) : q.isError ? (
             <div className="text-sm text-destructive">Failed to load anomalies.</div>
-          ) : (q.data?.length ?? 0) === 0 ? (
+          ) : (q.data?.anomalies?.length ?? 0) === 0 ? (
             <div className="text-sm text-muted-foreground">No anomalies detected.</div>
           ) : (
             <Table>
@@ -67,7 +67,7 @@ function AnomaliesPageContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {q.data?.map((a: Anomaly, idx: number) => (
+                {q.data?.anomalies?.map((a: Anomaly, idx: number) => (
                   <TableRow key={String(a.id ?? idx)}>
                     <TableCell>{riskBadge(a.anomaly_score)}</TableCell>
                     <TableCell className="font-mono text-xs">
@@ -76,7 +76,7 @@ function AnomaliesPageContent() {
                     <TableCell>{a.service ?? "—"}</TableCell>
                     <TableCell>{a.region ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {a.timestamp ?? "—"}
+                        {a.date ?? "—"}
                     </TableCell>
                   </TableRow>
                 ))}

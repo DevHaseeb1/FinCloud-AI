@@ -3,27 +3,28 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, Cloud } from "lucide-react";
+import { motion, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { fadeUp } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { cn } from "@/lib/utils";
 
 export function FinalCTASection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section className="relative overflow-hidden bg-[#0A0E1A] py-20 md:py-32">
+    <section className="relative overflow-hidden bg-background py-20 md:py-32">
       {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-cyan/5 via-transparent to-violet/5" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] rounded-full bg-cyan/[0.03] blur-3xl" />
 
-      <div
-        className={cn(
-          "relative z-10 mx-auto max-w-3xl px-6 text-center",
-          reduced ? "" : "opacity-0",
-        )}
-        style={{
-          animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 100ms forwards",
-        }}
+      <motion.div
+        ref={ref}
+        className="relative z-10 mx-auto max-w-3xl px-6 md:px-20 text-center"
+        initial={reduced ? false : "hidden"}
+        animate={reduced || isInView ? "visible" : "hidden"}
+        variants={fadeUp}
       >
         <h2 className="text-3xl font-bold text-white md:text-5xl leading-tight">
           Reduce Cloud Cost with{" "}
@@ -35,9 +36,9 @@ export function FinalCTASection() {
         <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Button
             size="lg"
-            className="bg-cyan text-space font-semibold hover:brightness-110 text-base px-8 h-12"
+            className="bg-cyan text-space font-semibold hover:brightness-110 text-base px-8 h-12 hover:scale-[1.02] active:scale-[0.98] transition-transform"
             nativeButton={false}
-            render={<a href="/signup" />}
+            render={<Link href="/signup" />}
           >
             Create Account
             <ArrowRight className="ml-2 size-4" />
@@ -45,15 +46,15 @@ export function FinalCTASection() {
           <Button
             size="lg"
             variant="outline"
-            className="border-white/10 text-white/80 hover:text-white hover:bg-white/[0.06] text-base px-8 h-12"
+            className="border-white/10 text-white/80 hover:text-white hover:bg-white/[0.06] text-base px-8 h-12 hover:scale-[1.02] active:scale-[0.98] transition-transform"
             nativeButton={false}
-            render={<a href="/aws" />}
+            render={<Link href="/aws" />}
           >
             <Cloud className="mr-2 size-4" />
             Connect AWS
           </Button>
         </div>
-      </div>
+      </motion.div>
     </section>
   );
 }

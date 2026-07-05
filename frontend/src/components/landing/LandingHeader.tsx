@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +40,12 @@ export function LandingHeader() {
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-320",
         scrolled
-          ? "bg-[#0A0E1A]/90 backdrop-blur-xl border-b border-white/[0.06]"
+          ? "bg-background/90 backdrop-blur-xl border-b border-white/[0.06]"
           : "bg-transparent",
       )}
       style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
     >
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 md:px-20">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5">
           <div className="size-8 rounded-lg bg-gradient-to-br from-cyan to-violet flex items-center justify-center">
@@ -63,9 +64,10 @@ export function LandingHeader() {
               key={link.href}
               href={link.href}
               onClick={(e) => handleNavClick(e, link.href)}
-              className="text-sm text-white/60 hover:text-white/90 transition-colors"
+              className="group relative text-sm text-white/60 hover:text-white/90 transition-colors py-1"
             >
               {link.label}
+              <span className="absolute bottom-0 left-0 h-px w-0 bg-cyan transition-all duration-300 group-hover:w-full" />
             </a>
           ))}
         </nav>
@@ -78,7 +80,9 @@ export function LandingHeader() {
             </Button>
           </Link>
           <Link href="/signup">
-            <Button className="bg-cyan text-space font-semibold hover:brightness-110">
+            <Button
+              className="bg-cyan text-space font-semibold hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+            >
               Get Started
             </Button>
           </Link>
@@ -95,34 +99,42 @@ export function LandingHeader() {
       </div>
 
       {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="border-t border-white/[0.06] bg-[#0A0E1A] md:hidden">
-          <div className="flex flex-col gap-2 px-6 py-4">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={(e) => handleNavClick(e, link.href)}
-                className="py-2 text-sm text-white/60 hover:text-white/90 transition-colors"
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="mt-2 flex gap-3 pt-4 border-t border-white/[0.06]">
-              <Link href="/login" className="flex-1">
-                <Button variant="outline" className="w-full border-white/10 text-white/70">
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/signup" className="flex-1">
-                <Button className="w-full bg-cyan text-space font-semibold">
-                  Get Started
-                </Button>
-              </Link>
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="border-t border-white/[0.06] bg-background md:hidden overflow-hidden"
+          >
+            <div className="flex flex-col gap-2 px-6 py-4">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
+                  className="py-2 text-sm text-white/60 hover:text-white/90 transition-colors"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <div className="mt-2 flex gap-3 pt-4 border-t border-white/[0.06]">
+                <Link href="/login" className="flex-1">
+                  <Button variant="outline" className="w-full border-white/10 text-white/70">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/signup" className="flex-1">
+                  <Button className="w-full bg-cyan text-space font-semibold">
+                    Get Started
+                  </Button>
+                </Link>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

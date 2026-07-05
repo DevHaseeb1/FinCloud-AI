@@ -52,10 +52,33 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _sync_schema() -> None:
+    """Add missing columns to existing tables to keep schema in sync with models."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    for table_name, table in Base.metadata.tables.items():
+        if not inspector.has_table(table_name):
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table_name)}
+        for column in table.columns:
+            if column.name not in existing:
+                try:
+                    col_type = column.type.compile(engine.dialect)
+                    stmt = f"ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type}"
+                    with engine.connect() as conn:
+                        conn.execute(text(stmt))
+                        conn.commit()
+                    logger.info(f"Added missing column {table_name}.{column.name}")
+                except Exception as e:
+                    logger.warning(f"Could not add column {table_name}.{column.name}: {e}")
+
+
 def init_db() -> None:
     """Initialize database by creating all tables."""
     logger.info("Initializing database...")
     Base.metadata.create_all(bind=engine)
+    _sync_schema()
     logger.info("Database initialization complete")
 
 

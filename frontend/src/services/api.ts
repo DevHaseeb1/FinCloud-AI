@@ -70,7 +70,7 @@ export async function getData<T>(
 export async function postData<T>(
   path: string,
   body: unknown,
-  opts?: { headers?: Record<string, string> },
+  opts?: { headers?: Record<string, string>; timeout?: number },
 ) {
   try {
     // #region agent log
@@ -78,6 +78,7 @@ export async function postData<T>(
     // #endregion
     const res = await api.post<ApiEnvelope<T>>(path, body, {
       headers: opts?.headers,
+      timeout: opts?.timeout ?? 30_000,
     });
     if (res.data?.status !== "success") {
       throw new ApiClientError(res.data?.message || "Request failed", {
@@ -97,7 +98,7 @@ export async function postData<T>(
 export async function putData<T>(
   path: string,
   body: unknown,
-  opts?: { headers?: Record<string, string> },
+  opts?: { headers?: Record<string, string>; timeout?: number },
 ) {
   try {
     const res = await api.put<ApiEnvelope<T>>(path, body, {
@@ -117,7 +118,7 @@ export async function putData<T>(
 
 export async function deleteData<T>(
   path: string,
-  opts?: { headers?: Record<string, string> },
+  opts?: { headers?: Record<string, string>; timeout?: number },
 ) {
   try {
     const res = await api.delete<ApiEnvelope<T>>(path, {

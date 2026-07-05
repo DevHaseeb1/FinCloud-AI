@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { uploadService } from "@/services/uploadService";
 import { useDataMode } from "@/lib/mode";
@@ -12,10 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CloudUpload, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { UploadHistory } from "@/components/upload/UploadHistory";
 import { cn } from "@/lib/utils";
 
 function UploadPageContent() {
   const { mode } = useDataMode();
+  const qc = useQueryClient();
   const [file, setFile] = React.useState<File | null>(null);
   const [dragActive, setDragActive] = React.useState(false);
   const [successVisible, setSuccessVisible] = React.useState(false);
@@ -30,6 +32,7 @@ function UploadPageContent() {
       toast.success("Upload Complete!", {
         description: `Successfully ingested ${data?.rows_ingested ?? 0} rows from your CSV file.`,
       });
+      qc.invalidateQueries({ queryKey: ["uploaded-files"] });
       setFile(null);
       setSuccessVisible(true);
       setTimeout(() => setSuccessVisible(false), 3000);
@@ -236,6 +239,8 @@ function UploadPageContent() {
               </div>
             </CardContent>
           </Card>
+
+          <UploadHistory />
         </div>
 
         <div className="space-y-4">
