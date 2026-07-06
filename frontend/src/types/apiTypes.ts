@@ -70,6 +70,9 @@ export type Recommendation = {
   estimated_savings?: number;
   priority?: "low" | "medium" | "high";
   category?: string;
+  service?: string;
+  region?: string;
+  confidence_score?: number;
 };
 
 export type RecommendationsResponse = {
@@ -80,6 +83,17 @@ export type RecommendationsResponse = {
 export type UploadResult = {
   rows_ingested?: number;
   dataset_id?: string;
+};
+
+export type UploadedFile = {
+  id: number;
+  filename: string;
+  file_size: number;
+  row_count: number;
+  processed_count: number;
+  date_min?: string;
+  date_max?: string;
+  created_at: string;
 };
 
 // Auth Types

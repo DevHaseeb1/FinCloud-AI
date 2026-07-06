@@ -5,7 +5,7 @@ Cost-related API endpoints.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 import logging
 
 from app.core.database import get_db
@@ -25,12 +25,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cost", tags=["cost"])
 
 
+def _resolve_date_range(
+    db: Session,
+    user_id: int,
+    days: Optional[int] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+) -> tuple[Optional[datetime], Optional[datetime]]:
+    """Compute (start, end) date bounds.
+
+    Priority:
+    1. Explicit start / end params (from frontend date picker)
+    2. Rolling window from data_max: data_max - days
+    3. Full range (data_min, data_max)
+    """
+    data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=user_id)
+    if data_max is None:
+        return None, None
+
+    actual_start = data_min
+    actual_end = data_max
+
+    if end is not None:
+        actual_end = min(end, data_max)
+    if start is not None:
+        actual_start = start
+    elif days is not None:
+        actual_start = max(data_max - timedelta(days=days), data_min)
+
+    return actual_start, actual_end
+
+
 @router.get("", response_model=schemas.APIResponse)
 async def get_cost_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
 ):
-    """Get cost overview (total, monthly, trends)."""
+    """Get cost overview over the full available date range."""
     data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
     if data_max is None:
         return schemas.APIResponse(
@@ -38,19 +69,32 @@ async def get_cost_overview(
             data={"total_cost": 0, "monthly_cost": 0, "cost_change_pct": 0},
             message="No cost data found",
         )
-    start_date = data_max - timedelta(days=30)
-    costs = db.query(db_models.ProcessedCostData).filter(
-        db_models.ProcessedCostData.date >= start_date,
+    all_costs = db.query(db_models.ProcessedCostData).filter(
+        db_models.ProcessedCostData.date >= data_min,
+        db_models.ProcessedCostData.date <= data_max,
         db_models.ProcessedCostData.user_id == current_user.id,
-    ).all()
-    total_cost = sum(c.total_cost for c in costs)
-    avg_daily = total_cost / len(costs) if costs else 0
+    ).order_by(db_models.ProcessedCostData.date).all()
+    total_cost = sum(c.total_cost for c in all_costs)
+    num_days = (data_max - data_min).days or 1
+    avg_daily = total_cost / num_days
+
+    cost_change_pct = 0
+    half = num_days // 2
+    if half > 0 and len(all_costs) >= half:
+        current_half = all_costs[-half:]
+        prior_half = all_costs[:half]
+        current_sum = sum(c.total_cost for c in current_half)
+        prior_sum = sum(c.total_cost for c in prior_half)
+        if prior_sum > 0:
+            cost_change_pct = round(((current_sum - prior_sum) / prior_sum) * 100, 2)
+
     return schemas.APIResponse(
         status="success",
         data={
             "total_cost": round(total_cost, 2),
             "monthly_cost": round(avg_daily * 30, 2),
-            "cost_change_pct": 0,
+            "average_daily_cost": round(avg_daily, 2),
+            "cost_change_pct": cost_change_pct,
         },
         message="Cost overview retrieved",
     )
@@ -58,54 +102,58 @@ async def get_cost_overview(
 
 @router.get("/summary", response_model=schemas.APIResponse)
 async def get_cost_summary(
-    days: int = Query(30, ge=1, le=365),
+    days: Optional[int] = Query(None, ge=1, le=365),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
 ):
-    """
-    Get cost summary for specified period.
-    
-    Args:
-        days: Number of days to summarize
-        db: Database session
-        
-    Returns:
-        Cost summary response
+    """Get cost summary.
+
+    By default shows the full available date range.
+    Pass `days` for a rolling window, or `start`/`end` for an exact range.
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
-        if data_max is None:
+        actual_start, actual_end = _resolve_date_range(db, current_user.id, days, start, end)
+        if actual_end is None:
             return schemas.APIResponse(
                 status="success",
                 data={"message": "No cost data found in database"},
                 message="Empty database"
             )
-        
-        start_date = data_max - timedelta(days=days)
-        
-        # Query processed costs
+
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.date >= actual_start,
+            db_models.ProcessedCostData.date <= actual_end,
             db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
-        
+
         if not costs:
             return schemas.APIResponse(
                 status="success",
                 data={"message": "No cost data found for specified period"},
                 message="Empty period"
             )
-        
-        # Calculate summary metrics
+
         total_cost = sum(c.total_cost for c in costs)
-        avg_daily_cost = total_cost / len(costs) if costs else 0
-        
+        num_days = (actual_end - actual_start).days or 1
+        avg_daily_cost = total_cost / num_days
+
+        cost_change_pct = 0
+        half_count = len(costs) // 2
+        if half_count > 0:
+            current_sum = sum(c.total_cost for c in costs[-half_count:])
+            prior_sum = sum(c.total_cost for c in costs[:half_count])
+            if prior_sum > 0:
+                cost_change_pct = round(((current_sum - prior_sum) / prior_sum) * 100, 2)
+
         summary = {
             "total_cost": round(total_cost, 2),
             "monthly_cost": round(avg_daily_cost * 30, 2),
-            "cost_change_pct": 0  # Could be calculated from previous period
+            "average_daily_cost": round(avg_daily_cost, 2),
+            "cost_change_pct": cost_change_pct,
         }
-        
+
         return schemas.APIResponse(
             status="success",
             data=summary,
@@ -118,47 +166,41 @@ async def get_cost_summary(
 
 @router.get("/timeseries", response_model=schemas.APIResponse)
 async def get_cost_timeseries(
-    days: int = Query(30, ge=1, le=365),
-    service: str = Query(None),
-    region: str = Query(None),
+    days: Optional[int] = Query(None, ge=1, le=365),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
+    service: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
 ):
-    """
-    Get cost time series data.
-    
-    Args:
-        days: Number of days
-        service: Filter by service
-        region: Filter by region
-        db: Database session
-        
-    Returns:
-        Time series data
+    """Get cost time series data.
+
+    By default shows the full available date range.
+    Pass `days` for a rolling window, or `start`/`end` for an exact range.
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
-        if data_max is None:
+        actual_start, actual_end = _resolve_date_range(db, current_user.id, days, start, end)
+        if actual_end is None:
             return schemas.APIResponse(
                 status="success",
                 data={"timeseries": []},
                 message="No cost data found in database"
             )
-        
-        start_date = data_max - timedelta(days=days)
-        
+
         query = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.date >= actual_start,
+            db_models.ProcessedCostData.date <= actual_end,
             db_models.ProcessedCostData.user_id == current_user.id,
         )
-        
+
         if service:
             query = query.filter(db_models.ProcessedCostData.service == service)
         if region:
             query = query.filter(db_models.ProcessedCostData.region == region)
-        
+
         costs = query.order_by(db_models.ProcessedCostData.date).all()
-        
+
         timeseries = [
             {
                 "date": c.date.isoformat(),
@@ -166,7 +208,7 @@ async def get_cost_timeseries(
             }
             for c in costs
         ]
-        
+
         return schemas.APIResponse(
             status="success",
             data={"timeseries": timeseries},
@@ -179,53 +221,48 @@ async def get_cost_timeseries(
 
 @router.get("/service-breakdown", response_model=schemas.APIResponse)
 async def get_service_breakdown(
-    days: int = Query(30, ge=1, le=365),
+    days: Optional[int] = Query(None, ge=1, le=365),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
 ):
-    """
-    Get cost breakdown by service.
-    
-    Args:
-        days: Number of days
-        db: Database session
-        
-    Returns:
-        Service breakdown
+    """Get cost breakdown by service.
+
+    By default shows the full available date range.
+    Pass `days` for a rolling window, or `start`/`end` for an exact range.
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
-        if data_max is None:
+        actual_start, actual_end = _resolve_date_range(db, current_user.id, days, start, end)
+        if actual_end is None:
             return schemas.APIResponse(
                 status="success",
                 data={"breakdown": []},
                 message="No cost data found in database"
             )
-        
-        start_date = data_max - timedelta(days=days)
-        
+
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.date >= actual_start,
+            db_models.ProcessedCostData.date <= actual_end,
             db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
-        
-        # Aggregate by service
+
         service_costs = {}
         for cost in costs:
             if cost.service not in service_costs:
                 service_costs[cost.service] = 0
             service_costs[cost.service] += cost.total_cost
-        
+
         total = sum(service_costs.values())
-        
+
         breakdown = []
-        for service, cost in sorted(service_costs.items(), key=lambda x: x[1], reverse=True):
+        for svc, cost in sorted(service_costs.items(), key=lambda x: x[1], reverse=True):
             breakdown.append({
-                "name": service,
+                "name": svc,
                 "cost": round(cost, 2),
                 "pct": round(calculate_percentage(cost, total), 2)
             })
-        
+
         return schemas.APIResponse(
             status="success",
             data={"breakdown": breakdown},
@@ -238,37 +275,32 @@ async def get_service_breakdown(
 
 @router.get("/region-breakdown", response_model=schemas.APIResponse)
 async def get_region_breakdown(
-    days: int = Query(30, ge=1, le=365),
+    days: Optional[int] = Query(None, ge=1, le=365),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_authenticated_user),
 ):
-    """
-    Get cost breakdown by region.
-    
-    Args:
-        days: Number of days
-        db: Database session
-        
-    Returns:
-        Region breakdown
+    """Get cost breakdown by region.
+
+    By default shows the full available date range.
+    Pass `days` for a rolling window, or `start`/`end` for an exact range.
     """
     try:
-        data_min, data_max = get_table_date_range(db, db_models.ProcessedCostData, "date", user_id=current_user.id)
-        if data_max is None:
+        actual_start, actual_end = _resolve_date_range(db, current_user.id, days, start, end)
+        if actual_end is None:
             return schemas.APIResponse(
                 status="success",
                 data={"breakdown": []},
                 message="No cost data found in database"
             )
-        
-        start_date = data_max - timedelta(days=days)
-        
+
         costs = db.query(db_models.ProcessedCostData).filter(
-            db_models.ProcessedCostData.date >= start_date,
+            db_models.ProcessedCostData.date >= actual_start,
+            db_models.ProcessedCostData.date <= actual_end,
             db_models.ProcessedCostData.user_id == current_user.id,
         ).all()
-        
-        # Aggregate by region
+
         region_costs = {}
         region_services = {}
         for cost in costs:
@@ -277,9 +309,9 @@ async def get_region_breakdown(
                 region_services[cost.region] = set()
             region_costs[cost.region] += cost.total_cost
             region_services[cost.region].add(cost.service)
-        
+
         total = sum(region_costs.values())
-        
+
         breakdown = []
         for region, cost in sorted(region_costs.items(), key=lambda x: x[1], reverse=True):
             breakdown.append({
@@ -287,7 +319,7 @@ async def get_region_breakdown(
                 "cost": round(cost, 2),
                 "pct": round(calculate_percentage(cost, total), 2)
             })
-        
+
         return schemas.APIResponse(
             status="success",
             data={"breakdown": breakdown},

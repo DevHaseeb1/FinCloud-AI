@@ -16,8 +16,7 @@ export function RegionBreakdown() {
   const topRegion = q.data?.[0];
 
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
-      <div className="absolute -right-32 -top-32 size-64 rounded-full bg-violet/5 blur-3xl pointer-events-none" />
+    <Card className="relative overflow-hidden border-border/50 bg-card shadow-sm h-full">
       <CardHeader className="relative">
         <div className="flex items-center justify-between">
           <div>
@@ -29,7 +28,7 @@ export function RegionBreakdown() {
           </div>
           {totalCost > 0 && (
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Total</div>
+              <div className="text-xs text-muted-foreground">Total</div>
               <div className="text-lg font-semibold font-mono">{formatCurrency(totalCost, { currency })}</div>
             </div>
           )}
@@ -37,7 +36,7 @@ export function RegionBreakdown() {
       </CardHeader>
       <CardContent className="relative">
         {q.isLoading ? (
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-72 w-full rounded-lg" />
         ) : q.isError ? (
           <div className="text-sm text-destructive">Failed to load region breakdown.</div>
         ) : (q.data?.length ?? 0) === 0 ? (

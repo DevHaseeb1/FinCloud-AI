@@ -60,7 +60,7 @@ function DifferentiatorCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-white/[0.06] bg-[#0D1225] p-6 transition-all duration-500 hover:border-white/[0.12] hover:shadow-[0_0_32px_rgba(0,212,255,0.06)]",
+        "rounded-xl border border-white/[0.06] bg-card p-6 transition-all duration-500 hover:border-white/[0.12] hover:shadow-[0_0_32px] hover:shadow-primary/6",
         !visible && "opacity-0 translate-y-6",
         visible && "opacity-100 translate-y-0",
       )}
@@ -125,7 +125,7 @@ export function DifferentiatorsSection() {
   const reduced = useReducedMotion();
 
   return (
-    <section className="bg-[#0A0E1A] py-20 md:py-28">
+    <section className="bg-background py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">

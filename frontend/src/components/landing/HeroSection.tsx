@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { ArrowRight, TrendingUp, AlertTriangle, Wallet, Zap, Activity } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useCountUp, staggerDelay } from "@/lib/animations";
+import { useCountUp, fadeUpDelayed, staggerContainer, staggerItem } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 
@@ -24,32 +26,18 @@ function StatCard({
   label,
   value,
   color,
-  index,
-  reduced,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   color: string;
-  index: number;
-  reduced: boolean;
 }) {
-  const [visible, setVisible] = React.useState(false);
-  const counted = useCountUp(value, 1000, reduced);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setVisible(true), staggerDelay(index, 120));
-    return () => clearTimeout(t);
-  }, [index]);
+  const counted = useCountUp(value, 1000);
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-white/[0.08] bg-white/[0.04] p-3 transition-all duration-400",
-        !visible && "opacity-0 translate-y-3",
-        visible && "opacity-100 translate-y-0",
-      )}
-      style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+    <motion.div
+      variants={staggerItem}
+      className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-3"
     >
       <div className="flex items-center gap-2">
         <span className={cn("size-3.5", color)}>{icon}</span>
@@ -58,28 +46,13 @@ function StatCard({
       <p className="mt-1 text-lg font-bold text-white font-mono tracking-tight">
         {counted.toLocaleString()}
       </p>
-    </div>
+    </motion.div>
   );
 }
 
 function HeroDashboard({ reduced }: { reduced: boolean }) {
-  const [alertVisible, setAlertVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (reduced) return;
-    const t = setTimeout(() => setAlertVisible(true), 2200);
-    return () => clearTimeout(t);
-  }, [reduced]);
-
-  const [showRec, setShowRec] = React.useState(false);
-  React.useEffect(() => {
-    if (reduced) return;
-    const t = setTimeout(() => setShowRec(true), 3800);
-    return () => clearTimeout(t);
-  }, [reduced]);
-
   return (
-    <div className="relative rounded-xl border border-white/[0.1] bg-[#0D1225] shadow-[0_0_48px_rgba(0,212,255,0.08)] overflow-hidden">
+    <div className="relative rounded-xl border border-white/[0.1] bg-card shadow-[0_0_48px] shadow-primary/8 overflow-hidden">
       {/* Window chrome */}
       <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-4 py-2.5">
         <div className="size-2 rounded-full bg-ember/60" />
@@ -90,72 +63,65 @@ function HeroDashboard({ reduced }: { reduced: boolean }) {
 
       <div className="p-3 space-y-2.5">
         {/* Stat cards row */}
-        <div className="grid grid-cols-2 gap-1.5">
+        <motion.div
+          className="grid grid-cols-2 gap-1.5"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
           <StatCard
             icon={<Wallet className="size-3.5" />}
             label="Today's Spend"
             value={3842}
             color="text-cyan"
-            index={0}
-            reduced={reduced}
           />
           <StatCard
             icon={<TrendingUp className="size-3.5" />}
             label="Predicted Month"
             value={114320}
             color="text-violet"
-            index={1}
-            reduced={reduced}
           />
           <StatCard
             icon={<Zap className="size-3.5" />}
             label="Potential Savings"
             value={18750}
             color="text-emerald-400"
-            index={2}
-            reduced={reduced}
           />
           <StatCard
             icon={<Activity className="size-3.5" />}
             label="Active Anomalies"
             value={4}
             color="text-ember"
-            index={3}
-            reduced={reduced}
           />
-        </div>
+        </motion.div>
 
         {/* Mini bar chart */}
-        <div
-          className={cn(
-            "rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 transition-all duration-400",
-          )}
+        <motion.div
+          variants={fadeUpDelayed(0.6)}
+          initial="hidden"
+          animate="visible"
+          className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5"
         >
           <p className="mb-1.5 text-[11px] text-white/40 font-mono">Daily cost trend (past 12 days)</p>
           <div className="flex items-end gap-1 h-16">
             {bars.map((h, i) => (
-              <div
+              <motion.div
                 key={i}
-                className="flex-1 rounded-t-sm bg-gradient-to-t from-cyan/60 to-cyan/30 transition-all duration-500"
-                style={{
-                  height: `${h}%`,
-                  transitionDelay: `${i * 40}ms`,
-                  opacity: reduced ? 1 : 0,
-                  animation: reduced ? "none" : `fade-up 300ms var(--ease-out-expo) ${i * 40}ms forwards`,
-                }}
+                className="flex-1 rounded-t-sm bg-gradient-to-t from-cyan/60 to-cyan/30"
+                initial={{ height: 0 }}
+                animate={{ height: `${h}%` }}
+                transition={{ duration: 0.4, delay: 0.7 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
               />
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Anomaly alert */}
-        <div
-          className={cn(
-            "rounded-lg border border-ember/20 bg-ember/[0.06] p-3 transition-all duration-500",
-            !alertVisible && "opacity-0 translate-y-2",
-            alertVisible && "opacity-100 translate-y-0",
-          )}
-          style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+        <motion.div
+          variants={fadeUpDelayed(1.8)}
+          initial="hidden"
+          animate="visible"
+          className="rounded-lg border border-ember/20 bg-ember/[0.06] p-3"
         >
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="size-4 text-ember mt-0.5 shrink-0 animate-anomaly-pulse" />
@@ -166,16 +132,14 @@ function HeroDashboard({ reduced }: { reduced: boolean }) {
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Savings recommendation */}
-        <div
-          className={cn(
-            "rounded-lg border border-cyan/20 bg-cyan/[0.04] p-3 transition-all duration-500",
-            !showRec && "opacity-0 translate-y-2",
-            showRec && "opacity-100 translate-y-0",
-          )}
-          style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+        <motion.div
+          variants={fadeUpDelayed(2.4)}
+          initial="hidden"
+          animate="visible"
+          className="rounded-lg border border-cyan/20 bg-cyan/[0.04] p-3"
         >
           <div className="flex items-start gap-2.5">
             <Zap className="size-4 text-cyan mt-0.5 shrink-0" />
@@ -186,7 +150,7 @@ function HeroDashboard({ reduced }: { reduced: boolean }) {
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
@@ -201,16 +165,16 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-[100dvh] flex items-center bg-[#0A0E1A] overflow-hidden pt-14">
+    <section className="relative min-h-[100dvh] flex items-center bg-background overflow-hidden pt-14">
       <AmbientOrbs />
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 py-8 md:py-16">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 md:px-20 py-8 md:py-16">
         <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-12">
           {/* Left: text */}
-          <div
-            className={cn("max-w-xl", reduced ? "" : "opacity-0")}
-            style={{
-              animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 100ms forwards",
-            }}
+          <motion.div
+            className="max-w-xl"
+            initial={reduced ? false : "hidden"}
+            animate="visible"
+            variants={fadeUpDelayed(0.1)}
           >
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan/20 bg-cyan/[0.04] px-3 py-1">
               <span className="size-1.5 rounded-full bg-cyan animate-pulse" />
@@ -228,9 +192,9 @@ export function HeroSection() {
             <div className="mt-6 flex flex-wrap gap-4">
               <Button
                 size="lg"
-                className="bg-cyan text-space font-semibold hover:brightness-110 text-base px-8 h-12"
+                className="bg-cyan text-space font-semibold hover:brightness-110 text-base px-8 h-12 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                render={<Link href="/signup" />}
                 nativeButton={false}
-                render={<a href="/signup" />}
               >
                 Get Started
                 <ArrowRight className="ml-2 size-4" />
@@ -238,26 +202,23 @@ export function HeroSection() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white/10 text-white/80 hover:text-white hover:bg-white/[0.06] text-base px-8 h-12"
+                className="border-white/10 text-white/80 hover:text-white hover:bg-white/[0.06] text-base px-8 h-12 hover:scale-[1.02] active:scale-[0.98] transition-transform"
                 onClick={scrollToDemo}
               >
                 Live Demo
               </Button>
             </div>
-          </div>
+          </motion.div>
 
           {/* Right: dashboard mockup */}
-          <div
-            className={cn(
-              "w-full max-w-lg mx-auto lg:mx-0 lg:max-w-none",
-              reduced ? "" : "opacity-0",
-            )}
-            style={{
-              animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 200ms forwards",
-            }}
+          <motion.div
+            className="w-full max-w-lg mx-auto lg:mx-0 lg:max-w-none"
+            initial={reduced ? false : "hidden"}
+            animate="visible"
+            variants={fadeUpDelayed(0.2)}
           >
             <HeroDashboard reduced={reduced} />
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

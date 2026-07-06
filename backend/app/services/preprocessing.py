@@ -54,7 +54,11 @@ class DataPreprocessor:
 
             df["daily_cost"] = df["cost"]
             df["hourly_cost"] = df["cost"] / 24
-            df["cost_velocity"] = df["cost"].diff().fillna(0)
+            df["cost_velocity"] = (
+                df.groupby(["service", "region"])["cost"]
+                .diff()
+                .fillna(0)
+            )
 
             # Rolling averages
             df["rolling_avg_7d"] = (

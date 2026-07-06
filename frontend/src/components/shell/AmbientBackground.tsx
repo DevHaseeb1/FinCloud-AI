@@ -12,14 +12,14 @@ export function AmbientBackground() {
       <div
         className="absolute -top-32 -left-32 size-96 rounded-full opacity-[0.05] dark:opacity-[0.05]"
         style={{
-          background: "radial-gradient(circle, #00D4FF 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--cyan) 0%, transparent 70%)",
           animation: "particle-drift 8s ease-in-out infinite",
         }}
       />
       <div
         className="absolute -bottom-32 -right-32 size-96 rounded-full opacity-[0.04] dark:opacity-[0.04]"
         style={{
-          background: "radial-gradient(circle, #7C3AED 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--violet) 0%, transparent 70%)",
           animation: "particle-drift 11s ease-in-out infinite",
           animationDelay: "2s",
         }}
@@ -27,7 +27,7 @@ export function AmbientBackground() {
       <div
         className="absolute top-1/2 right-0 size-80 rounded-full opacity-[0.03] dark:opacity-[0.03]"
         style={{
-          background: "radial-gradient(circle, #F97316 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--ember) 0%, transparent 70%)",
           animation: "particle-drift 9s ease-in-out infinite",
           animationDelay: "5s",
         }}

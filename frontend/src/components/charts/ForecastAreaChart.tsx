@@ -9,8 +9,10 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  ReferenceLine,
 } from "recharts";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { ChartTooltip } from "@/components/charts/ChartTooltip";
 
 export function ForecastAreaChart({
   data,
@@ -48,31 +50,29 @@ export function ForecastAreaChart({
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            opacity={0.2}
-            stroke="hsl(var(--border))"
+            opacity={0.15}
+            stroke="var(--border)"
           />
           <XAxis
             dataKey={xKey}
             tickMargin={8}
             minTickGap={24}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
           <YAxis
             tickFormatter={yFormatter}
             width={70}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
           <Tooltip
-            formatter={(v) => (typeof v === "number" ? yFormatter?.(v) ?? v : v)}
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-              color: "hsl(var(--foreground))",
-            }}
-            labelStyle={{ color: "hsl(var(--foreground))" }}
+            content={<ChartTooltip valueFormatter={yFormatter} />}
+            cursor={{ stroke: "var(--violet)", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
 
           {hasBand ? (
@@ -90,7 +90,7 @@ export function ForecastAreaChart({
                 type="monotone"
                 dataKey={lowerKey as string}
                 stroke="transparent"
-                fill="hsl(var(--background))"
+                fill="var(--background)"
                 fillOpacity={1}
                 isAnimationActive={!reduced}
                 animationDuration={800}
@@ -103,7 +103,7 @@ export function ForecastAreaChart({
             <Line
               type="monotone"
               dataKey={actualKey}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               strokeWidth={2}
               dot={false}
               isAnimationActive={!reduced}
@@ -116,9 +116,10 @@ export function ForecastAreaChart({
             type="monotone"
             dataKey={predictedKey}
             stroke="var(--violet)"
-            strokeWidth={2.5}
+            strokeWidth={2}
             strokeDasharray="6 3"
             dot={false}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--violet)", fill: "var(--background)" }}
             isAnimationActive={!reduced}
             animationDuration={800}
             animationEasing="ease-out"

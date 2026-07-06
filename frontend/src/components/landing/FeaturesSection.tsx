@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Radar, TrendingUp, Sparkles, Globe, Activity, Bell } from "lucide-react";
+import { motion, useInView } from "framer-motion";
+import { staggerContainer, staggerItem, springTransition } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { staggerDelay } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 
 const FEATURES = [
@@ -47,34 +48,19 @@ const FEATURES = [
 
 function FeatureCard({
   item,
-  index,
-  reduced,
 }: {
   item: (typeof FEATURES)[number];
-  index: number;
-  reduced: boolean;
 }) {
-  const [visible, setVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (reduced) { setVisible(true); return; }
-    const t = setTimeout(() => setVisible(true), staggerDelay(index, 100));
-    return () => clearTimeout(t);
-  }, [index, reduced]);
-
   return (
-    <div
-      className={cn(
-        "group relative overflow-hidden rounded-xl border border-white/[0.06] bg-[#0D1225] p-5 transition-all duration-400 hover:border-white/[0.12] hover:shadow-[0_0_24px_rgba(0,212,255,0.06)]",
-        !visible && "opacity-0 translate-y-4",
-        visible && "opacity-100 translate-y-0",
-      )}
-      style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+    <motion.div
+      variants={staggerItem}
+      whileHover={{ y: -4, transition: springTransition }}
+      className="group relative overflow-hidden rounded-xl border border-white/[0.06] bg-card p-5 transition-shadow duration-400 hover:border-white/[0.12] hover:shadow-[0_0_24px] hover:shadow-primary/6"
     >
       <div
         className="absolute inset-[-1px] rounded-[11px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-400"
         style={{
-          background: "conic-gradient(from var(--border-angle, 0deg), #00D4FF 0%, #7C3AED 40%, #00D4FF 80%, transparent 100%)",
+          background: "conic-gradient(from var(--border-angle, 0deg), var(--cyan) 0%, var(--violet) 40%, var(--cyan) 80%, transparent 100%)",
           WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           WebkitMaskComposite: "xor",
           mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
@@ -88,16 +74,18 @@ function FeatureCard({
       </div>
       <h3 className="text-base font-semibold text-white">{item.title}</h3>
       <p className="mt-1.5 text-sm text-white/60 leading-relaxed">{item.description}</p>
-    </div>
+    </motion.div>
   );
 }
 
 export function FeaturesSection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="features" className="bg-[#0A0E1A] py-16 md:py-24">
-      <div className="mx-auto max-w-7xl px-6">
+    <section id="features" className="bg-background py-16 md:py-24">
+      <div className="mx-auto max-w-7xl px-6 md:px-20">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">
             Core Platform Features
@@ -106,10 +94,17 @@ export function FeaturesSection() {
             Everything you need to monitor, forecast, and optimize your cloud spending.
           </p>
         </div>
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((item, i) => (
-            <FeatureCard key={item.title} item={item} index={i} reduced={reduced} />
-          ))}
+        <div ref={ref} className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            className="contents"
+            variants={staggerContainer}
+            initial="hidden"
+            animate={reduced || isInView ? "visible" : "hidden"}
+          >
+            {FEATURES.map((item) => (
+              <FeatureCard key={item.title} item={item} />
+            ))}
+          </motion.div>
         </div>
       </div>
     </section>

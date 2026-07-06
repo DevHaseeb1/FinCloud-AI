@@ -1,5 +1,5 @@
-import { postData } from "@/services/api";
-import type { UploadResult } from "@/types/apiTypes";
+import { postData, getData, deleteData } from "@/services/api";
+import type { UploadResult, UploadedFile } from "@/types/apiTypes";
 
 export const uploadService = {
   uploadCsv: async (file: File, opts?: { mode?: string }) => {
@@ -9,7 +9,11 @@ export const uploadService = {
     const form = new FormData();
     form.append("file", file);
     if (opts?.mode) form.append("mode", opts.mode);
-    return postData<UploadResult>("/upload/data", form);
+    return postData<UploadResult>("/upload/data", form, { timeout: 300_000 });
   },
+  list: async (opts?: { skip?: number; limit?: number }) =>
+    getData<{ files: UploadedFile[]; total: number }>("/upload/files", { params: opts }),
+  delete: async (id: number) =>
+    deleteData<{ file_id: number; filename: string }>(`/upload/files/${id}`),
 };
 

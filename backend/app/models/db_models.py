@@ -38,6 +38,13 @@ class RawCostData(Base):
     usage_quantity = Column(Float, nullable=True)
     instance_type = Column(String(100), nullable=True)
     account_id = Column(String(100), nullable=True)
+    line_item_type = Column(String(50), nullable=True)
+    resource_id = Column(String(200), nullable=True)
+    operation = Column(String(100), nullable=True)
+    product_family = Column(String(100), nullable=True)
+    pricing_term = Column(String(50), nullable=True)
+    currency_code = Column(String(10), nullable=True)
+    normalization_factor = Column(Float, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     user = relationship("User", backref="raw_cost_data")
@@ -79,11 +86,11 @@ class Anomaly(Base):
     anomaly_flag = Column(Boolean, nullable=False, default=False)
     cost_value = Column(Float, nullable=False)
     explanation = Column(Text, nullable=True)
-    cost_zscore = Column(Float, nullable=True, index=True)
-    cost_ratio_p95 = Column(Float, nullable=True, index=True)
-    daily_spend_zscore = Column(Float, nullable=True, index=True)
-    cost_per_unit_ratio = Column(Float, nullable=True, index=True)
-    error_count = Column(Integer, nullable=True, index=True)
+    cost_zscore = Column(Float, nullable=True)
+    cost_ratio_p95 = Column(Float, nullable=True)
+    daily_spend_zscore = Column(Float, nullable=True)
+    cost_per_unit_ratio = Column(Float, nullable=True)
+    error_count = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     user = relationship("User", backref="anomalies")
 
@@ -121,6 +128,22 @@ class Recommendation(Base):
     priority = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
     user = relationship("User", backref="recommendations")
+
+
+class UploadedFile(Base):
+    """Tracks uploaded CSV/Excel files."""
+    __tablename__ = "uploaded_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=False)  # bytes
+    row_count = Column(Integer, nullable=False)
+    processed_count = Column(Integer, nullable=False)
+    date_min = Column(DateTime, nullable=True)
+    date_max = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    user = relationship("User", backref="uploaded_files")
 
 
 class AwsConnection(Base):

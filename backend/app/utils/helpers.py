@@ -88,7 +88,14 @@ def generate_sample_cost_data(num_records: int = 1000,
             'cost': cost,
             'usage_quantity': np.random.uniform(100, 10000),
             'instance_type': f't{np.random.choice([2, 3])}.' + np.random.choice(['micro', 'small', 'medium']),
-            'account_id': f'12345678{np.random.randint(0, 100):02d}'
+            'account_id': f'12345678{np.random.randint(0, 100):02d}',
+            'line_item_type': np.random.choice(['Usage', 'Tax', 'Fee', 'Credit', 'Refund'], p=[0.85, 0.05, 0.05, 0.03, 0.02]),
+            'resource_id': f'arn:aws:ec2:us-east-1:123456789012:instance/i-{np.random.randint(10000, 99999):05d}',
+            'operation': np.random.choice(['RunInstances', 'CreateVolume', 'PutObject', 'GetObject', 'Invoke']),
+            'product_family': np.random.choice(['Compute Instance', 'Storage', 'Database', 'Serverless', 'Network']),
+            'pricing_term': np.random.choice(['OnDemand', 'Reserved', 'Spot'], p=[0.7, 0.2, 0.1]),
+            'currency_code': 'USD',
+            'normalization_factor': np.random.uniform(0.5, 2.0),
         })
     
     df = pd.DataFrame(records)

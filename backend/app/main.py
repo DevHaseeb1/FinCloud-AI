@@ -8,10 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 from contextlib import asynccontextmanager
+import json
+import time
 
 from app.core.settings import get_settings
 from app.core.database import init_db, SessionLocal
-from sqlalchemy import text
 from app.api.routes import cost, anomaly, forecast, recommendations, upload, aws, auth
 
 # Setup logging
@@ -51,21 +52,54 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+def _dbg_req(message: str, data: dict, hypothesis_id: str):
+    try:
+        payload = {
+            "sessionId": "e15a98",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": "backend/app/main.py",
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(r"c:\Users\Haseeb\Desktop\FinCloud-AI\debug-e15a98.log", "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
 
 @app.middleware("http")
-async def log_requests(request, call_next):
-    logger.debug(f"{request.method} {request.url.path}")
+async def debug_request_logger(request, call_next):
+    _dbg_req(
+        "Incoming request",
+        {
+            "method": request.method,
+            "path": request.url.path,
+            "query": str(request.url.query),
+            "origin": request.headers.get("origin"),
+            "content_type": request.headers.get("content-type"),
+        },
+        "H1",
+    )
     try:
         response = await call_next(request)
+        _dbg_req(
+            "Request complete",
+            {"method": request.method, "path": request.url.path, "status": response.status_code},
+            "H1",
+        )
         return response
     except Exception as e:
-        logger.error(f"Request failed: {request.method} {request.url.path}: {e}")
+        _dbg_req(
+            "Request exception",
+            {"method": request.method, "path": request.url.path, "error": str(e)[:500], "type": type(e).__name__},
+            "H1",
+        )
         raise
 
 
@@ -88,7 +122,7 @@ async def health_check():
     try:
         # Try to get database session
         db = SessionLocal()
-        db.execute(text("SELECT 1"))
+        db.execute("SELECT 1")
         db.close()
         
         return {

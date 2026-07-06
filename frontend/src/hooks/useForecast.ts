@@ -10,8 +10,16 @@ export function useForecast() {
     queryKey: ["forecast", "base", mode],
     queryFn: async () => {
       const data = await forecastService.base({ mode });
-      // Unwrap if nested in forecasts object
-      return Array.isArray(data) ? data : data?.forecasts ?? [];
+      const forecasts = Array.isArray(data) ? data : data?.forecasts ?? [];
+      return forecasts.map((f: any) => ({
+        date: f.date,
+        service: f.service,
+        region: f.region,
+        actual: f.actual,
+        predicted: f.predicted_cost ?? f.predicted,
+        lower: f.lower_bound ?? f.lower,
+        upper: f.upper_bound ?? f.upper,
+      }));
     },
   });
 }

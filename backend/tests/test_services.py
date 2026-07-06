@@ -109,6 +109,62 @@ class TestDataValidator:
         assert 'usage_quantity' in mapped.columns
         assert mapped['timestamp'].dtype == object or 'datetime' in str(mapped['timestamp'].dtype)
 
+    def test_aws_billing_cur_style_column_names(self):
+        """Test mapping with actual CUR-style column names (with /)."""
+        df = pd.DataFrame({
+            'lineItem/UsageStartDate': ['2024-01-01T00:00:00Z'],
+            'lineItem/UnblendedCost': [200.0],
+            'lineItem/UsageAccountId': ['123456789012'],
+            'lineItem/UsageType': ['BoxUsage:t3.micro'],
+            'lineItem/LineItemType': ['Usage'],
+            'lineItem/ResourceId': ['arn:aws:ec2:us-east-1:i-12345'],
+            'lineItem/Operation': ['RunInstances'],
+            'product/ProductName': ['Amazon Elastic Compute Cloud'],
+            'product/ProductFamily': ['Compute Instance'],
+            'product/InstanceType': ['t3.micro'],
+            'pricing/term': ['OnDemand'],
+            'pricing/publicOnDemandCost': [200.0],
+        })
+
+        mapped = map_aws_billing_columns(df)
+
+        assert 'timestamp' in mapped.columns
+        assert 'total_cost' in mapped.columns
+        assert 'account_id' in mapped.columns
+        assert 'usage_type' in mapped.columns
+        assert 'line_item_type' in mapped.columns
+        assert 'resource_id' in mapped.columns
+        assert 'operation' in mapped.columns
+        assert 'product_family' in mapped.columns
+        assert 'pricing_term' in mapped.columns
+        assert 'instance_type' in mapped.columns
+        assert 'service' in mapped.columns
+
+    def test_aws_billing_all_new_column_mappings(self):
+        """Test mapping of all new columns from extended priorities."""
+        df = pd.DataFrame({
+            'line_item_line_item_type': ['Usage'],
+            'line_item_resource_id': ['arn:aws:ec2:i-abc'],
+            'line_item_operation': ['RunInstances'],
+            'product_product_family': ['Compute Instance'],
+            'pricing_term': ['OnDemand'],
+            'line_item_currency_code': ['USD'],
+            'line_item_normalization_factor': [1.5],
+        })
+
+        mapped = map_aws_billing_columns(df)
+
+        assert mapped.get('line_item_type') is not None
+        assert mapped.get('resource_id') is not None
+        assert mapped.get('operation') is not None
+        assert mapped.get('product_family') is not None
+        assert mapped.get('pricing_term') is not None
+        assert mapped.get('currency_code') is not None
+        assert mapped.get('normalization_factor') is not None
+        assert mapped['line_item_type'].iloc[0] == 'Usage'
+        assert mapped['resource_id'].iloc[0] == 'arn:aws:ec2:i-abc'
+        assert mapped['operation'].iloc[0] == 'RunInstances'
+
     def test_aws_billing_interval_and_cost_fallback(self):
         df = pd.DataFrame({
             'identity_time_interval': ['2024-01-01T00:00:00Z/2024-01-01T01:00:00Z'],
@@ -146,6 +202,34 @@ class TestAnomalyDetectionService:
             "instance_type": np.random.choice(["t3.micro", "m5.large"], 200),
             "cost": np.random.uniform(5, 500, 200),
             "usage_amount": np.random.uniform(100, 10000, 200),
+            "operation": np.random.choice(["RunInstances", "CreateVolume", "PutObject"], 200),
+            "product_family": np.random.choice(["Compute Instance", "Storage", "Database"], 200),
+            "pricing_term": np.random.choice(["OnDemand", "Reserved"], 200),
+            "resource_id": [f"arn:aws:ec2:i-{i:05d}" for i in range(200)],
+            "line_item_type": ["Usage"] * 200,
+        })
+
+    @pytest.fixture
+    def sample_billing_data_with_credits(self):
+        dates = pd.date_range("2024-01-01", periods=100, freq="h")
+        np.random.seed(7)
+        types = ["Usage"] * 80 + ["Credit"] * 10 + ["Refund"] * 10
+        np.random.shuffle(types)
+        return pd.DataFrame({
+            "timestamp": dates,
+            "account_id": ["acc-002"] * 100,
+            "service": ["ec2"] * 100,
+            "usage_type": ["BoxUsage"] * 100,
+            "region": ["us-east-1"] * 100,
+            "environment": ["prod"] * 100,
+            "instance_type": ["t3.micro"] * 100,
+            "cost": np.random.uniform(10, 200, 100),
+            "usage_amount": np.random.uniform(100, 1000, 100),
+            "operation": ["RunInstances"] * 100,
+            "product_family": ["Compute Instance"] * 100,
+            "pricing_term": ["OnDemand"] * 100,
+            "resource_id": [f"arn:aws:ec2:i-{i:05d}" for i in range(100)],
+            "line_item_type": types,
         })
 
     def test_train_and_detect(self, sample_billing_data):
@@ -165,6 +249,21 @@ class TestAnomalyDetectionService:
         top = svc.get_top_anomalies(result, top_n=3)
         assert len(top) <= 3
         assert (top["anomaly_flag"] == 1).all()
+
+    def test_credit_refund_filtering_with_line_item_type(self, sample_billing_data_with_credits):
+        from app.services.anomaly_detection import AnomalyDetectionService
+        svc = AnomalyDetectionService(contamination=0.05)
+        result = svc.detect_anomalies(sample_billing_data_with_credits)
+        assert "anomaly_flag" in result.columns
+        assert result["anomaly_flag"].isin([0, 1]).all()
+
+    def test_new_features_columns_present(self, sample_billing_data):
+        from app.services.anomaly_detection import AnomalyDetectionService, FEATURE_COLS
+        assert "operation_freq" in FEATURE_COLS
+        assert "product_family_freq" in FEATURE_COLS
+        assert "pricing_term_freq" in FEATURE_COLS
+        assert "resource_id_freq" in FEATURE_COLS
+        assert "line_item_type_freq" in FEATURE_COLS
 
     def test_save_and_load_artifacts(self, sample_billing_data, tmp_path):
         from app.services.anomaly_detection import AnomalyDetectionService
@@ -223,8 +322,9 @@ class TestRandomForest:
         """Test model training."""
         X = np.random.randn(100, 4)
         y = np.random.randn(100)
+        feature_names = ["f1", "f2", "f3", "f4"]
         
-        model.train(X, y)
+        model.fit(X, y, feature_names)
         
         assert model.is_fitted is True
     
@@ -232,10 +332,11 @@ class TestRandomForest:
         """Test predictions."""
         X_train = np.random.randn(100, 4)
         y_train = np.random.randn(100)
-        model.train(X_train, y_train)
+        feature_names = ["f1", "f2", "f3", "f4"]
+        model.fit(X_train, y_train, feature_names)
         
         X_test = np.random.randn(10, 4)
-        predictions = model.predict(X_test)
+        predictions = model.predict_savings(X_test)
         
         assert len(predictions) == 10
 
@@ -266,49 +367,25 @@ class TestExplanationColumns:
     def test_migration_upgrade_and_downgrade(self):
         from alembic.config import Config
         from alembic import command
-        from sqlalchemy import inspect, text as sql_text
+        from sqlalchemy import inspect
         from app.core.database import engine
         from pathlib import Path
 
         alembic_cfg = Config()
-        # alembic dir is at backend/alembic (1 level up from tests/)
         alembic_dir = str(Path(__file__).resolve().parent.parent / "alembic")
         alembic_cfg.set_main_option("script_location", alembic_dir)
-        from app.core.settings import get_settings
-        _settings = get_settings()
-        alembic_cfg.set_main_option("sqlalchemy.url", _settings.database_url)
 
-        # Downgrade to base
+        # Downgrade to base → explanation columns should be removed
         command.downgrade(alembic_cfg, "base")
-        with engine.connect() as conn:
-            if engine.dialect.name == "postgresql":
-                result = conn.execute(
-                    sql_text(
-                        "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_name = 'anomalies' AND column_name = 'cost_zscore'"
-                    )
-                )
-                assert result.first() is None
-            else:
-                inspector = inspect(engine)
-                columns = {c["name"] for c in inspector.get_columns("anomalies")}
-                assert "cost_zscore" not in columns
+        inspector = inspect(engine)
+        columns = {c["name"] for c in inspector.get_columns("anomalies")}
+        assert "cost_zscore" not in columns, "cost_zscore should be gone after downgrade"
 
-        # Upgrade again
+        # Upgrade to head → columns should be added back
         command.upgrade(alembic_cfg, "head")
-        with engine.connect() as conn:
-            if engine.dialect.name == "postgresql":
-                result = conn.execute(
-                    sql_text(
-                        "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_name = 'anomalies' AND column_name = 'cost_zscore'"
-                    )
-                )
-                assert result.first() is not None
-            else:
-                inspector = inspect(engine)
-                columns = {c["name"] for c in inspector.get_columns("anomalies")}
-                assert "cost_zscore" in columns
+        inspector = inspect(engine)
+        columns = {c["name"] for c in inspector.get_columns("anomalies")}
+        assert "cost_zscore" in columns, "cost_zscore should exist after upgrade"
 
 
 class TestScoreAnomalies:
@@ -327,6 +404,11 @@ class TestScoreAnomalies:
             "instance_type": np.random.choice(["t3.micro"], 150),
             "cost": np.random.uniform(10, 500, 150),
             "usage_amount": np.random.uniform(100, 5000, 150),
+            "operation": np.random.choice(["RunInstances", "PutObject"], 150),
+            "product_family": np.random.choice(["Compute Instance", "Storage"], 150),
+            "pricing_term": ["OnDemand"] * 150,
+            "resource_id": [f"arn:aws:ec2:i-{i:05d}" for i in range(150)],
+            "line_item_type": ["Usage"] * 150,
         })
 
     def test_score_and_persist(self, sample_billing_data):
@@ -336,6 +418,7 @@ class TestScoreAnomalies:
 
         inserted = score_and_persist(
             sample_billing_data,
+            user_id=1,
             contamination=0.1,
             batch_label="test_batch",
         )
@@ -450,10 +533,11 @@ class TestAnomalyAPI:
         from fastapi.testclient import TestClient
         from app.main import app
         from app.api.dependencies import require_authenticated_user
+        from app.models.db_models import User
 
-        # Override auth dependency to bypass authentication
+        # Override auth dependency with a real user object
         async def _mock_user():
-            return None
+            return User(id=1, email="test@example.com", name="Test User", is_active=True)
 
         app.dependency_overrides[require_authenticated_user] = _mock_user
         with TestClient(app) as c:

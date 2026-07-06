@@ -9,8 +9,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { ChartTooltip } from "@/components/charts/ChartTooltip";
 
 export function LineChart({
   data,
@@ -25,8 +27,12 @@ export function LineChart({
 }) {
   const reduced = useReducedMotion();
 
+  const avg = data.length > 0
+    ? data.reduce((sum: number, d: Record<string, any>) => sum + (d[yKey] ?? 0), 0) / data.length
+    : 0;
+
   return (
-    <div className="h-64 w-full">
+    <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
           <defs>
@@ -37,42 +43,50 @@ export function LineChart({
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            opacity={0.2}
-            stroke="hsl(var(--border))"
+            opacity={0.15}
+            stroke="var(--border)"
           />
           <XAxis
             dataKey={xKey}
             tickMargin={8}
             minTickGap={24}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
           <YAxis
             tickFormatter={yFormatter}
             width={70}
-            stroke="hsl(var(--muted-foreground))"
-            style={{ fontSize: "12px" }}
+            stroke="var(--muted-foreground)"
+            style={{ fontSize: "11px", fill: "var(--muted-foreground)" }}
+            tickLine={false}
+            axisLine={false}
           />
+          {avg > 0 && (
+            <ReferenceLine
+              y={avg}
+              stroke="var(--muted-foreground)"
+              strokeDasharray="4 4"
+              strokeOpacity={0.4}
+            />
+          )}
           <Tooltip
-            formatter={(v) => (typeof v === "number" ? yFormatter?.(v) ?? v : v)}
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-              color: "hsl(var(--foreground))",
-            }}
-            labelStyle={{ color: "hsl(var(--foreground))" }}
+            content={<ChartTooltip valueFormatter={yFormatter} />}
+            cursor={{ stroke: "var(--cyan)", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
           <Area
             type="monotone"
             dataKey={yKey}
             stroke="var(--cyan)"
-            strokeWidth={2.5}
+            strokeWidth={2}
             fill="url(#costFill)"
             dot={false}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--cyan)", fill: "var(--background)" }}
             isAnimationActive={!reduced}
             animationDuration={1200}
             animationEasing="ease-out"
+            name="Cost"
           />
         </AreaChart>
       </ResponsiveContainer>

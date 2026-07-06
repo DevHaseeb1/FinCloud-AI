@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -21,6 +20,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAnomalies } from "@/hooks/useAnomalies";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
@@ -67,7 +71,6 @@ interface FilterChip {
 const FILTER_CHIPS: FilterChip[] = [
   { label: "Cost spike (zscore > 3)", param: "cost_zscore_gt", value: 3 },
   { label: "Above P95 (> 2×)", param: "cost_ratio_p95_gt", value: 2 },
-  { label: "Daily spend spike (z > 3)", param: "daily_spend_zscore_gt", value: 3 },
   { label: "Efficiency anomaly (> 5×)", param: "cost_per_unit_ratio_gt", value: 5 },
   { label: "Has errors", param: "has_errors", value: true },
 ];
@@ -260,41 +263,72 @@ function ExplanationDrawer({
   );
 }
 
-// ── Filter chips bar ────────────────────────────────────────────────────────
+// ── Filter chips popover ────────────────────────────────────────────────────
 
-function FilterChips({
+function FilterPopover({
   activeFilters,
   onToggle,
+  onClear,
 }: {
   activeFilters: Set<string>;
   onToggle: (param: string) => void;
+  onClear: () => void;
 }) {
-  if (FILTER_CHIPS.length === 0) return null;
+  const [open, setOpen] = React.useState(false);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Filter className="size-3.5 text-muted-foreground" />
-      {FILTER_CHIPS.map((chip) => {
-        const active = activeFilters.has(chip.param);
-        return (
-          <button
-            key={chip.param}
-            onClick={() => onToggle(chip.param)}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-              active
-                ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300"
-                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className="inline-flex h-7 items-center justify-start gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      >
+        <Filter className="size-3" />
+        Filters
+        {activeFilters.size > 0 && (
+          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+            {activeFilters.size}
+          </Badge>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Filter anomalies</span>
+            {activeFilters.size > 0 && (
+              <button onClick={onClear} className="text-[10px] text-muted-foreground hover:text-foreground">
+                Clear all
+              </button>
             )}
-          >
-            {chip.label}
-            {active && (
-              <X className="size-3" onClick={(e) => { e.stopPropagation(); onToggle(chip.param); }} />
-            )}
-          </button>
-        );
-      })}
-    </div>
+          </div>
+          {FILTER_CHIPS.map((chip) => {
+            const active = activeFilters.has(chip.param);
+            return (
+              <button
+                key={chip.param}
+                onClick={() => onToggle(chip.param)}
+                className={cn(
+                  "w-full text-left flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "size-3.5 rounded-sm border flex items-center justify-center",
+                    active
+                      ? "bg-orange-500 border-orange-500"
+                      : "border-muted-foreground/30",
+                  )}
+                >
+                  {active && <span className="size-1.5 rounded-sm bg-white" />}
+                </span>
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -330,7 +364,7 @@ function AnomalyRow({
       onClick={() => onSelect(a)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(a); }}
       className={cn(
-        "grid grid-cols-[auto_1fr_auto] gap-3 rounded-lg border border-border/50 bg-background/50 p-3 transition-all duration-100 hover:bg-background/80 hover:border-border cursor-pointer",
+        "grid grid-cols-[auto_1fr_auto] gap-3 rounded-lg border border-border/50 bg-background/50 p-3 transition-all duration-100 hover:bg-muted/50 hover:border-border cursor-pointer",
         !visible && "opacity-0 translate-y-2",
         visible && "opacity-100 translate-y-0",
       )}
@@ -355,7 +389,7 @@ function AnomalyRow({
           <span className="truncate text-sm font-medium">
             {a.service || "Unknown"}
             {a.region && (
-              <span className="text-muted-foreground"> • {a.region}</span>
+              <span className="text-muted-foreground"> · {a.region}</span>
             )}
           </span>
         </div>
@@ -367,9 +401,9 @@ function AnomalyRow({
             : "Explanation unavailable"}
         </div>
 
-        {/* Signal pills */}
+        {/* Signal pills — hidden on mobile */}
         {explanation && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-2 hidden sm:flex flex-wrap gap-1">
             {explanation.cost_zscore != null && (
               <span
                 className={cn(
@@ -449,6 +483,8 @@ export function AnomalyPanel() {
     });
   };
 
+  const clearFilters = () => setActiveFilters(new Set());
+
   const openDrawer = (a: Anomaly) => {
     setSelectedAnomaly(a);
     setDrawerOpen(true);
@@ -456,16 +492,16 @@ export function AnomalyPanel() {
 
   const closeDrawer = () => {
     setDrawerOpen(false);
-    // Delay clearing so the drawer close animation plays
     setTimeout(() => setSelectedAnomaly(null), 200);
   };
 
   const anomalies: Anomaly[] = Array.isArray(q.data) ? q.data : q.data?.anomalies ?? [];
+  const highCount = anomalies.filter((a) => a.severity === "high").length;
+  const mediumCount = anomalies.filter((a) => a.severity === "medium").length;
 
   return (
     <>
-      <Card className="relative overflow-hidden border-border/50 bg-surface/80 backdrop-blur-sm">
-        <div className="absolute -right-32 -top-32 size-64 rounded-full bg-orange-500/5 blur-3xl pointer-events-none" />
+      <Card className="relative overflow-hidden border-border/50 bg-card shadow-sm h-full">
         <CardHeader className="relative flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -478,20 +514,46 @@ export function AnomalyPanel() {
                 : "Detected cost anomalies"}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="ml-auto">
-            {q.data?.total_count ?? anomalies.length ?? 0}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <FilterPopover
+              activeFilters={activeFilters}
+              onToggle={toggleFilter}
+              onClear={clearFilters}
+            />
+            <Badge variant="outline" className="text-xs">
+              {q.data?.total_count ?? anomalies.length ?? 0}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="relative space-y-4">
-          {/* Filter chips */}
-          <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
+          {/* Summary stats */}
+          {!q.isLoading && anomalies.length > 0 && (
+            <div className="flex items-center gap-3 text-xs">
+              {highCount > 0 && (
+                <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                  <span className="size-1.5 rounded-full bg-red-500" />
+                  {highCount} high
+                </span>
+              )}
+              {mediumCount > 0 && (
+                <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                  <span className="size-1.5 rounded-full bg-amber-500" />
+                  {mediumCount} medium
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <span className="size-1.5 rounded-full bg-muted-foreground/30" />
+                {anomalies.length - highCount - mediumCount} low
+              </span>
+            </div>
+          )}
 
           {/* Loading */}
           {q.isLoading ? (
             <div className="space-y-3">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
             </div>
           ) : q.isError ? (
             <div className="text-sm text-destructive">Failed to load anomalies.</div>
@@ -500,7 +562,7 @@ export function AnomalyPanel() {
           ) : (
             /* Anomaly list */
             <div className="space-y-2">
-              {anomalies.slice(0, 20).map((a: Anomaly, idx: number) => (
+              {anomalies.slice(0, 15).map((a: Anomaly, idx: number) => (
                 <AnomalyRow
                   key={String(a.id ?? idx)}
                   a={a}

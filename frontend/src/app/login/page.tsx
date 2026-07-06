@@ -4,8 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { fadeUpDelayed } from "@/lib/animations";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AuthFeaturesPanel } from "@/components/auth/AuthFeaturesPanel";
@@ -25,7 +27,7 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push("/");
+      router.push("/dashboard");
     }
   }, [isAuthenticated, authLoading, router]);
 
@@ -59,42 +61,43 @@ export default function LoginPage() {
   if (authLoading) return null;
 
   return (
-    <div className="flex min-h-[100dvh] w-full">
+    <div className="dark flex min-h-[100dvh] w-full">
       <AuthFeaturesPanel variant="login" />
 
       {/* Right Panel */}
       <div className="flex w-full items-center justify-center bg-surface p-6 lg:w-1/2">
-        <div
+        <motion.div
           className="w-full max-w-md"
-          style={{
-            opacity: reduced ? 1 : 0,
-            animation: reduced ? "none" : "fade-up 320ms var(--ease-out-expo) 60ms forwards",
-          }}
+          initial={reduced ? false : "hidden"}
+          animate="visible"
+          variants={fadeUpDelayed(0.06)}
         >
-          <div
+          <motion.div
             className="rounded-2xl border border-white/8 bg-surface p-8"
-            style={shake ? { animation: "shake 400ms ease-in-out" } : undefined}
+            animate={shake ? { x: [0, -6, 6, -4, 4, 0] } : {}}
+            transition={{ duration: 0.4 }}
           >
             <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
             <p className="mt-1 text-sm text-muted-foreground">Sign in to your account</p>
 
-            {error && (
-              <div
-                className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-ember"
-                style={{
-                  animation: "slideDown 150ms var(--ease-out-expo)",
-                }}
-              >
-                {error}
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-ember"
+                >
+                  {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <div
-                style={{
-                  opacity: reduced ? 1 : 0,
-                  animation: reduced ? "none" : "fade-up 320ms var(--ease-out-expo) 100ms forwards",
-                }}
+              <motion.div
+                initial={reduced ? false : "hidden"}
+                animate="visible"
+                variants={fadeUpDelayed(0.1)}
               >
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
                 <Input
@@ -108,13 +111,12 @@ export default function LoginPage() {
                 {fieldErrors.email && (
                   <p className="mt-1 text-sm text-ember">{fieldErrors.email}</p>
                 )}
-              </div>
+              </motion.div>
 
-              <div
-                style={{
-                  opacity: reduced ? 1 : 0,
-                  animation: reduced ? "none" : "fade-up 320ms var(--ease-out-expo) 140ms forwards",
-                }}
+              <motion.div
+                initial={reduced ? false : "hidden"}
+                animate="visible"
+                variants={fadeUpDelayed(0.14)}
               >
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Password</label>
                 <div className="relative">
@@ -139,23 +141,25 @@ export default function LoginPage() {
                 {fieldErrors.password && (
                   <p className="mt-1 text-sm text-ember">{fieldErrors.password}</p>
                 )}
-              </div>
+              </motion.div>
 
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-cyan text-space font-semibold hover:brightness-110 active:scale-[0.98] transition-all h-10"
-                style={{
-                  opacity: reduced ? 1 : 0,
-                  animation: reduced ? "none" : "fade-up 320ms var(--ease-out-expo) 180ms forwards",
-                }}
+              <motion.div
+                initial={reduced ? false : "hidden"}
+                animate="visible"
+                variants={fadeUpDelayed(0.18)}
               >
-                {isSubmitting ? (
-                  <Loader2 className="size-4 animate-spin text-space" />
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-cyan text-space font-semibold hover:brightness-110 active:scale-[0.98] transition-all h-10 hover:scale-[1.02]"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="size-4 animate-spin text-space" />
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </motion.div>
             </form>
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
@@ -164,16 +168,9 @@ export default function LoginPage() {
                 Sign up
               </Link>
             </p>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
-
-      <style jsx>{`
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

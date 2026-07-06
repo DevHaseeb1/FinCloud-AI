@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useCountUp, staggerDelay } from "@/lib/animations";
+import { motion, useInView } from "framer-motion";
+import { useCountUp, staggerContainer, staggerItem } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { cn } from "@/lib/utils";
 
 const STATS = [
   { value: 30, suffix: "+", label: "API Endpoints" },
@@ -19,53 +19,43 @@ function StatItem({
   prefix,
   suffix,
   label,
-  index,
-  reduced,
 }: {
   value: number;
   prefix?: string;
   suffix: string;
   label: string;
-  index: number;
-  reduced: boolean;
 }) {
-  const [visible, setVisible] = React.useState(false);
-  const counted = useCountUp(value, 1200, reduced);
-
-  React.useEffect(() => {
-    if (reduced) { setVisible(true); return; }
-    const t = setTimeout(() => setVisible(true), staggerDelay(index, 100));
-    return () => clearTimeout(t);
-  }, [index, reduced]);
+  const counted = useCountUp(value, 1200);
 
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center transition-all duration-500",
-        !visible && "opacity-0 translate-y-4",
-        visible && "opacity-100 translate-y-0",
-      )}
-      style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
-    >
+    <motion.div variants={staggerItem} className="flex flex-col items-center">
       <span className="text-2xl font-bold text-white md:text-3xl font-mono tracking-tight">
         {value > 0 ? `${prefix ?? ""}${counted}${suffix}` : prefix}
       </span>
       <span className="mt-1 text-xs text-white/50 text-center leading-tight">{label}</span>
-    </div>
+    </motion.div>
   );
 }
 
 export function StatsBar() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section className="border-y border-white/[0.06] bg-[#0D1225]">
-      <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6">
-          {STATS.map((stat, i) => (
-            <StatItem key={stat.label} {...stat} index={i} reduced={reduced} />
+    <section className="border-y border-white/[0.06] bg-card">
+      <div className="mx-auto max-w-7xl px-6 md:px-20 py-12 md:py-16">
+        <motion.div
+          ref={ref}
+          className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6"
+          variants={staggerContainer}
+          initial="hidden"
+          animate={reduced || isInView ? "visible" : "hidden"}
+        >
+          {STATS.map((stat) => (
+            <StatItem key={stat.label} {...stat} />
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

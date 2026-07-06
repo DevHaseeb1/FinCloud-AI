@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
             <Input
               placeholder="Search services, regions, alerts…"
-              className="pl-9 transition-all duration-200 focus-within:shadow-[0_0_0_2px_rgba(0,212,255,0.3)]"
+              className="pl-9 transition-all duration-200 focus-within:shadow-[0_0_0_2px] focus-within:shadow-primary/30"
               style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
               aria-label="Search"
             />

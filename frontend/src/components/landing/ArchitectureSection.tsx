@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Cloud, Database, Brain, BarChart3, LayoutDashboard, MessageSquareText, Bell, ArrowRight, ArrowDown } from "lucide-react";
+import { ArrowRight, ArrowDown } from "lucide-react";
+import { motion, useInView } from "framer-motion";
+import { fadeUpDelayed } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 
@@ -50,24 +52,23 @@ const resultColorMap: Record<string, string> = {
 function StageCard({
   stage,
   delay,
-  reduced,
 }: {
   stage: (typeof STAGES)[number];
   delay: number;
-  reduced: boolean;
 }) {
   const c = colorMap[stage.color as keyof typeof colorMap];
 
   return (
-    <div
-      className={cn(
-        "flex-1 rounded-xl border bg-[#0D1225]/60 p-3 transition-all duration-500 hover:border-white/[0.12]",
-        c.border,
-        reduced ? "" : "opacity-0 translate-y-3",
-      )}
-      style={{
-        animation: reduced ? "none" : `fade-up 400ms var(--ease-out-expo) ${delay}ms forwards`,
+    <motion.div
+      initial={false}
+      variants={{
+        hidden: { opacity: 0, y: 12 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] } },
       }}
+      className={cn(
+        "flex-1 rounded-xl border bg-card/60 p-3 transition-all duration-500 hover:border-white/[0.12]",
+        c.border,
+      )}
     >
       <div className={cn("text-[11px] font-semibold uppercase tracking-wider mb-2", c.text)}>
         {stage.title}
@@ -85,18 +86,20 @@ function StageCard({
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 export function ArchitectureSection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="architecture" className="relative bg-[#0A0E1A] py-12 md:py-16 overflow-hidden">
+    <section id="architecture" className="relative bg-background py-16 md:py-24 overflow-hidden">
       <div className="absolute left-1/2 top-1/2 size-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan/[0.02] blur-3xl" />
 
-      <div className="relative z-10 mx-auto max-w-5xl px-6">
+      <div className="relative z-10 mx-auto max-w-5xl px-6 md:px-20">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white md:text-3xl">Architecture</h2>
           <p className="mt-2 text-sm text-white/50 max-w-xl mx-auto">
@@ -104,19 +107,22 @@ export function ArchitectureSection() {
           </p>
         </div>
 
-        <div
-          className={cn(
-            "mt-8 rounded-2xl border border-white/[0.06] bg-[#0D1225]/80 p-4 backdrop-blur-sm md:p-6",
-            reduced ? "" : "opacity-0",
-          )}
-          style={{
-            animation: reduced ? "none" : "fade-up 500ms var(--ease-out-expo) 100ms forwards",
-          }}
+        <motion.div
+          ref={ref}
+          className="mt-8 rounded-2xl border border-white/[0.06] bg-card/80 p-4 backdrop-blur-sm md:p-6"
+          initial={reduced ? false : "hidden"}
+          animate={reduced || isInView ? "visible" : "hidden"}
+          variants={fadeUpDelayed(0.1)}
         >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-2">
+          <motion.div
+            className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-2"
+            variants={{ visible: { transition: { staggerChildren: 0.15 } } }}
+            initial="hidden"
+            animate={reduced || isInView ? "visible" : "hidden"}
+          >
             {STAGES.map((stage, i) => (
               <React.Fragment key={stage.title}>
-                <StageCard stage={stage} delay={200 + i * 200} reduced={reduced} />
+                <StageCard stage={stage} delay={0.2 + i * 0.15} />
                 {i < STAGES.length - 1 && (
                   <div className="flex items-center justify-center py-1 lg:py-0">
                     <ArrowRight className="size-4 text-white/20 hidden lg:block" />
@@ -125,8 +131,8 @@ export function ArchitectureSection() {
                 )}
               </React.Fragment>
             ))}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );

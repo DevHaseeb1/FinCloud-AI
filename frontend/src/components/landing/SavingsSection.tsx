@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { TrendingUp, Shield, BadgeCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { motion, useInView } from "framer-motion";
+import { staggerContainer, staggerItem, springTransition } from "@/lib/animations";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { staggerDelay } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 
@@ -37,21 +37,9 @@ const RECOMMENDATIONS = [
 
 function RecCard({
   rec,
-  index,
-  reduced,
 }: {
   rec: (typeof RECOMMENDATIONS)[number];
-  index: number;
-  reduced: boolean;
 }) {
-  const [visible, setVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (reduced) { setVisible(true); return; }
-    const t = setTimeout(() => setVisible(true), staggerDelay(index, 120));
-    return () => clearTimeout(t);
-  }, [index, reduced]);
-
   const priorityColor =
     rec.priority === "high"
       ? "bg-ember/10 text-ember border-ember/20"
@@ -60,13 +48,10 @@ function RecCard({
         : "bg-cyan/10 text-cyan border-cyan/20";
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border border-white/[0.06] bg-[#0D1225] p-5 transition-all duration-500 hover:border-white/[0.12]",
-        !visible && "opacity-0 translate-y-4",
-        visible && "opacity-100 translate-y-0",
-      )}
-      style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+    <motion.div
+      variants={staggerItem}
+      whileHover={{ y: -4, transition: springTransition }}
+      className="rounded-xl border border-white/[0.06] bg-card p-5 transition-shadow duration-400 hover:border-white/[0.12]"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2.5">
@@ -91,16 +76,18 @@ function RecCard({
           {rec.confidence}% confidence
         </span>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 export function SavingsSection() {
   const reduced = useReducedMotion();
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="savings" className="bg-[#0D1225] py-16 md:py-24">
-      <div className="mx-auto max-w-5xl px-6">
+    <section id="savings" className="bg-card py-16 md:py-24">
+      <div className="mx-auto max-w-5xl px-6 md:px-20">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white md:text-4xl">
             AI-Generated Recommendations
@@ -109,10 +96,17 @@ export function SavingsSection() {
             Machine learning identifies cost-saving opportunities across your AWS environment with estimated dollar impact.
           </p>
         </div>
-        <div className="mt-10 space-y-3">
-          {RECOMMENDATIONS.map((rec, i) => (
-            <RecCard key={rec.title} rec={rec} index={i} reduced={reduced} />
-          ))}
+        <div ref={ref} className="mt-10 space-y-3">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate={reduced || isInView ? "visible" : "hidden"}
+            className="space-y-3"
+          >
+            {RECOMMENDATIONS.map((rec) => (
+              <RecCard key={rec.title} rec={rec} />
+            ))}
+          </motion.div>
         </div>
       </div>
     </section>
