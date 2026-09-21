@@ -413,7 +413,7 @@ FinCloud AI was developed as a Final Year Project (FYP) focused on combining clo
     </a>
     <br /><sub>Frontend Developer</sub>
   </div>
-
+<br>
   <div align="center">
     <a href="https://github.com/usman-rizz">
       <img src="https://github.com/usman-rizz.png?size=120" width="100px;" alt="Team Member 2"/>
@@ -421,7 +421,7 @@ FinCloud AI was developed as a Final Year Project (FYP) focused on combining clo
     </a>
     <br /><sub>Solution Architecture</sub>
   </div>
-
+<br>
   <div align="center">
     <a href="https://github.com/YOUR-GITHUB-3">
       <img src="https://github.com/YOUR-GITHUB-3.png?size=120" width="100px;" alt="Team Member 3"/>
@@ -429,7 +429,7 @@ FinCloud AI was developed as a Final Year Project (FYP) focused on combining clo
     </a>
     <br /><sub>ML workflow</sub>
   </div>
-
+<br>
   <div align="center">
     <a href="https://github.com/YOUR-GITHUB-4">
       <img src="https://github.com/YOUR-GITHUB-4.png?size=120" width="100px;" alt="Team Member 4"/>
